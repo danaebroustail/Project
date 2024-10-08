@@ -17,6 +17,7 @@ class DataLoader:
             data_dir (str): The directory path where the search for paths will be conducted.
         Returns:
             dict: A dictionary containing the paths found in the specified directory.
+            Keys are the file paths and values are dictionaries containing the filenames and DataFrames.
         """
 
         d = {}
