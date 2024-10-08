@@ -123,13 +123,13 @@ class DataLoader:
         Returns:
         pandas.DataFrame: The data from the file as a pandas DataFrame.
         Notes:
-        - If the file is a CSV and contains 'behavsummary' in its name (case insensitive), 
-        the DataFrame will be processed by the `process_behav_summary` function.
+        - If the file is a CSV and contains 'resnet50' or 'dlc' in its name (case insensitive), 
+        the DataFrame will be processed by the `process_behav_dlc` function.
         - The function currently supports only CSV and Excel files.
         """
 
         if path.endswith('.csv'):
-            if 'resnet50' in path.lower():
+            if 'resnet50' in path.lower() or 'dlc' in path.lower():
                 df = self.process_behav_dlc(path)
             else:
                 df = pd.read_csv(path)
