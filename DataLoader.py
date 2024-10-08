@@ -187,7 +187,7 @@ class DataLoader:
         Examples:
         ---------
         # Retrieve data for a specific mouse ID and day
-        data = get_data_for_experiment(mouse_ids=['M1'], days=['d1'])    
+        data = get_data_for_experiment(mouse_id='M1', day='d1')    
         """
 
         filters = [f for f in [mouse_id, day, extra_param_1, extra_param_2] if f is not None] 
