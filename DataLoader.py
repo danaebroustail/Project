@@ -59,39 +59,55 @@ class DataLoader:
 
                 d[path_item] = {"filename": item, "df": df}
 
-    def process_behav_dlc(self, df,
+    def process_behav_dlc(self, path,
+                        num_header_rows = 3,
                         change_column_names=True,
                         drop_wall_columns = True,
-                        drop_time_index = True,
-                        time_index_to_drop=150):
+                        drop_inital_frames = True,
+                        frame_index_to_drop = 150,
+                        create_time_seconds = True,
+                        framerate = 30):
         
         """
         Processes a DataFrame containing behavioral data from DeepLabCut (DLC).
         Parameters:
-            df (pd.DataFrame): The input DataFrame to process.
-            change_column_names (bool, optional): If True, changes the column names by concatenating the first two rows. Default is True.
-            drop_wall_columns (bool, optional): If True, drops columns containing the word 'wall'. Default is True.
-            drop_time_index (bool, optional): If True, drops rows with 'time_index' less than or equal to `time_index_to_drop`. Default is True.
-            time_index_to_drop (int, optional): The threshold for dropping rows based on 'time_index'. Default is 150.
+            path (str): The file path to the DLC data file.
+            num_header_rows (int, optional): The number of header rows in the file. Defaults to 3.
+            change_column_names (bool, optional): Whether to change the column names. Defaults to True.
+            drop_wall_columns (bool, optional): Whether to drop columns containing 'wall'. Defaults to True.
+            drop_inital_frames (bool, optional): Whether to drop rows until frame_index 150. Defaults to True.
+            frame_index_to_drop (int, optional): The frame index until which rows should be dropped. Defaults to 150.
+            create_time_seconds (bool, optional): Whether to create a time_seconds column from the frame_index column. Defaults to True.
+            framerate (int, optional): The framerate of the video. Defaults to 30.
+
         Returns:
             pd.DataFrame: The processed DataFrame.
         """
+        # read first 3 rows of the file containing feature information
+        headers = pd.read_csv(path, nrows=num_header_rows)
+        # extract bodyparts and coordinates names
+        bodyparts, coords = headers.iloc[0, 1:], headers.iloc[1, 1:]
+        # read the file data
+        df = pd.read_csv(path, skiprows=num_header_rows-1)
                         
         # ----- 1. Change column names
         if change_column_names:
             # concatenate the first two rows and join by by '_' to generate new column names
-            new_columns = ['time_index'] + [el1 + '_' + el2 for el1, el2 in zip(df.iloc[0, 1:], df.iloc[1, 1:])]
+            new_columns = ['frame_index'] + [el1 + '_' + el2 for el1, el2 in zip(bodyparts, coords)]
             # rename the columns
             df.columns = new_columns
-            # drop the first two rows
-            df = df.drop([0, 1])
 
-        # ----- 2. Drop rows until time_index 150
-        df['time_index'] = df['time_index'].astype(int)
-        if drop_time_index:
-            df = df[df['time_index'] > time_index_to_drop]
+        # ----- 2. Drop rows until frame_index 150
+        if drop_inital_frames:
+            df = df[df['frame_index'] > frame_index_to_drop]
 
-        # ----- 3. Drop columns 
+        # ----- 3. Create time_seconds column
+        if create_time_seconds:
+            df['time_seconds'] = df['frame_index'] / framerate
+            # redefine order of columns in dataframe
+            df = df[['frame_index', 'time_seconds'] + [col for col in df.columns if col not in ['frame_index', 'time_seconds']]]
+
+        # ----- 4. Drop columns 
         if drop_wall_columns:
             columns_to_drop = [col for col in df.columns if 'wall' in col.lower()]
             df = df.drop(columns=columns_to_drop)
@@ -113,9 +129,10 @@ class DataLoader:
         """
 
         if path.endswith('.csv'):
-            df = pd.read_csv(path)
             if 'resnet50' in path.lower():
-                df = self.process_behav_dlc(df)
+                df = self.process_behav_dlc(path)
+            else:
+                df = pd.read_csv(path)
 
         elif path.endswith('.xlsx'):
             df = pd.read_excel(path)
