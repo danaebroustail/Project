@@ -130,20 +130,18 @@ class DataLoader:
         """
         Filters files based on provided criteria.
         Args:
-            mouse_ids (list): List of mouse IDs to filter by.
-            days (list): List of days to filter by.
-            file_types (list): List of file types to filter by.
-            file_subtypes (list): List of file subtypes to filter by.
-            results_dict (dict, optional): Dictionary containing file paths as keys and their attributes as values.
+            filters (list): A list of strings to filter the files by.
         Returns:
             list: List of file paths that match all the provided filters.
             None: If results_dict is not provided.
         """
                 
-        if self.df_dict is not None:
-            files = [k for k, v in self.df_dict.items() if all(f in k for f in filters)]
-            return files
-        
+        if self.df_dict is  None:
+            self.df_dict = self.find_paths_main(self.data_dir)
+
+        files = [k for k, v in self.df_dict.items() if all(f in k for f in filters)]
+        return files
+
     def get_data_for_experiment(self, mouse_id: str,
                     day:str,
                     extra_param_1 = None,
