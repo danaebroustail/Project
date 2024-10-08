@@ -1,15 +1,11 @@
-# Load the data
-
 import pandas as pd
 import os
 
-data_dir = 'data'
-file_extensions = ['.csv', '.xlsx']
-
 class DataLoader:
 
-    def __init__(self, data_dir):
+    def __init__(self, data_dir, file_extensions = ['.csv', '.xlsx']):
         self.data_dir = data_dir
+        self.file_extensions = file_extensions
         self.df_dict = self.find_paths_main(data_dir)
 
     def find_paths_main(self, data_dir):
@@ -56,7 +52,7 @@ class DataLoader:
                 self.find_paths_helper(path_item, d)
 
             # convertible format
-            elif item.endswith(tuple(file_extensions)):
+            elif item.endswith(tuple(self.file_extensions)):
                 #print(f"Found a file at path {path_dir}")
                 path_item = os.path.join(path_dir, item)
                 df = self.convert_to_df(path_item)
