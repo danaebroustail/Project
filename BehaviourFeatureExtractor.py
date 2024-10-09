@@ -69,22 +69,29 @@ def compute_head_angle_to_pup(df_DLC, add_vector_columns = False):
 
 #### Plotting utility functions #####
 
-def plot_mouse_angle_to_pup(trial_df_DLC):
+def plot_mouse_angle_to_pup(trial_df_DLC,
+                            ylim = None,
+                            xlim = None,
+                            frame_index = None):
 
     # select a random frame in the trial
-    frame_index_min, frame_index_max = trial_df_DLC['frame_index'].min(), trial_df_DLC['frame_index'].max()
-    frame_index = random.randint(frame_index_min, frame_index_max)
+    if frame_index is None:
+        frame_index_min, frame_index_max = trial_df_DLC['frame_index'].min(), trial_df_DLC['frame_index'].max()
+        frame_index = random.randint(frame_index_min, frame_index_max)
+
     trial_1_DLC_frame = trial_df_DLC[trial_df_DLC['frame_index'] == frame_index]
 
     # plot the frame
     fig, ax = plt.subplots(1, 1, figsize=(6, 6))
 
-    xlim, ylim =  max(trial_df_DLC['msTop_x'].max(), trial_df_DLC['pup_x'].max()), max(trial_df_DLC['msTop_y'].max(), trial_df_DLC['pup_y'].max())
+    if xlim is None or ylim is None:
+        xlim, ylim =  max(trial_df_DLC['msTop_x'].max(), trial_df_DLC['pup_x'].max()), max(trial_df_DLC['msTop_y'].max(), trial_df_DLC['pup_y'].max())
 
     trial_1_DLC_frame.plot(x='earRight_x', y='earRight_y', style='o', ax=ax, xlim=(0, xlim), ylim=(0, ylim), color = 'black')
     trial_1_DLC_frame.plot(x='earLeft_x', y='earLeft_y', style='o', ax=ax, xlim=(0, xlim), ylim=(0, ylim), color = 'black')
     trial_1_DLC_frame.plot(x='nose_x', y='nose_y', style='o', ax=ax, xlim=(0, xlim), ylim=(0, ylim), color = 'red')
     trial_1_DLC_frame.plot(x='pup_x', y='pup_y', style='o', ax=ax,xlim=(0, xlim), ylim=(0, ylim), color = 'purple')
+    trial_1_DLC_frame.plot(x='between_ears_x', y='between_ears_y', style='o', ax=ax, xlim=(0, xlim), ylim=(0, ylim), color = 'blue')
 
     # draw lines
     # draw line from nose to between ears in blue
