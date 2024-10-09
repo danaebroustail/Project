@@ -2,6 +2,10 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import random
+import warnings
+
+# Suppress FutureWarning messages
+warnings.filterwarnings('ignore') 
 
 # the following utility functions assume that the input is a processed DLC file.
 def compute_speed(df_DLC):
@@ -78,8 +82,7 @@ def plot_mouse_angle_to_pup(trial_df_DLC,
     if frame_index is None:
         frame_index_min, frame_index_max = trial_df_DLC['frame_index'].min(), trial_df_DLC['frame_index'].max()
         frame_index = random.randint(frame_index_min, frame_index_max)
-
-    trial_1_DLC_frame = trial_df_DLC[trial_df_DLC['frame_index'] == frame_index]
+    trial_1_DLC_frame = trial_df_DLC.loc[trial_df_DLC['frame_index'] == frame_index, :]
 
     # plot the frame
     fig, ax = plt.subplots(1, 1, figsize=(6, 6))
