@@ -68,6 +68,37 @@ def compute_head_angle_to_pup(df_DLC, add_vector_columns = False):
     
     return df_DLC
 
+def extract_base_parameters(df_DLC, df_summary):
+
+    # for each trial, get the start and end frames
+    end_times, start_times = df_summary['BehavRecdTrialEndSecs'], df_summary['PupDispDropSecs']
+
+    # create NaN columns for speed, distance to pup and head angle to pup
+    df_DLC['speed_cm/s'] = np.nan
+    df_DLC['distance_to_pup'] = np.nan
+    df_DLC['head_angle_to_pup_degrees'] = np.nan
+
+    # iterate over each trial
+    for end, start in zip(end_times, start_times):
+            # compute frame indices
+            end_frame, start_frame = round(end*30), round(start*30)
+
+            # get the data for the trial
+            mask = (df_DLC['frame_index'] >= start_frame) & (df_DLC['frame_index'] <= end_frame)
+            trial_DLC = df_DLC.loc[mask, :] 
+
+            # compute speed
+            trial_DLC = compute_speed(trial_DLC)
+            # compute distance to pup
+            trial_DLC = compute_distance_to_pup(trial_DLC)
+            # compute head angle to pup
+            trial_DLC = compute_head_angle_to_pup(trial_DLC)
+            
+            # update the dataframe
+            df_DLC.loc[mask, :] = trial_DLC
+
+    return df_DLC
+
 
 
 
