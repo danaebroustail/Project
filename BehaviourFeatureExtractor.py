@@ -82,9 +82,8 @@ def extract_base_parameters(df_DLC, df_summary):
                   These columns have default NaN values for frames that don't belong to any trial.
     """
 
-
     # for each trial, get the start and end frames
-    end_times, start_times = df_summary['BehavRecdTrialEndSecs'], df_summary['PupDispDropSecs']
+    end_times, start_times, trial_nums = df_summary['BehavRecdTrialEndSecs'], df_summary['PupDispDropSecs'], df_summary['TrialNum']
 
     # create NaN columns for speed, distance to pup and head angle to pup
     df_DLC['speed_cm/s'] = np.nan
@@ -92,9 +91,11 @@ def extract_base_parameters(df_DLC, df_summary):
     df_DLC['head_angle_to_pup_degrees'] = np.nan
 
     # iterate over each trial
-    for end, start in zip(end_times, start_times):
+    for end, start, trial_num in zip(end_times, start_times, trial_nums):
             # compute frame indices
             end_frame, start_frame = round(end*30), round(start*30)
+
+            print(f"Processing trial {trial_num} Start frame: {start_frame} End frame: {end_frame}")
 
             # get the data for the trial
             mask = (df_DLC['frame_index'] >= start_frame) & (df_DLC['frame_index'] <= end_frame)
@@ -111,7 +112,6 @@ def extract_base_parameters(df_DLC, df_summary):
             df_DLC.loc[mask, :] = trial_DLC
 
     return df_DLC
-
 
 
 
