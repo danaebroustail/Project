@@ -16,14 +16,14 @@ def convert_seconds_to_frame(seconds, frame_rate = 30):
 def extract_trial_from_DLC(df_DLC, df_summary, 
                             trial_num, trial_num_col = 'TrialNum',
                             trial_start_col = 'PupDispDropSecs', trial_end_col = 'BehavRecdTrialEndSecs',
-                            time_col = "time_seconds", frame_index_col = 'frame_index'):
+                            time_col = "time_seconds", frame_index_col = 'frame_index', frame_rate = 30):
 
     # get the trial start and end times
     trial_start_time = df_summary.loc[df_summary[trial_num_col] == trial_num, trial_start_col].values[0]
     trial_end_time = df_summary.loc[df_summary[trial_num_col] == trial_num, trial_end_col].values[0]
 
     # convert trial start and end times to frame indices
-    start_frame, end_frame = convert_seconds_to_frame(trial_start_time), convert_seconds_to_frame(trial_end_time)
+    start_frame, end_frame = convert_seconds_to_frame(trial_start_time, frame_rate), convert_seconds_to_frame(trial_end_time, frame_rate)
     
     # extract the trial data
     mask = (df_DLC[frame_index_col] >= start_frame) & (df_DLC[frame_index_col] <= end_frame)
