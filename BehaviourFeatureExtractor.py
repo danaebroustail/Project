@@ -69,6 +69,19 @@ def compute_head_angle_to_pup(df_DLC, add_vector_columns = False):
     return df_DLC
 
 def extract_base_parameters(df_DLC, df_summary):
+    """
+    Extracts base parameters such as speed, distance to pup, and head angle to pup for each trial 
+    from the given DataFrame.
+    Parameters:
+    df_DLC (pd.DataFrame): DataFrame containing DeepLabCut (DLC) tracking data with a 'frame_index' column.
+    df_summary (pd.DataFrame): DataFrame containing summary information for each trial, including 
+                               'BehavRecdTrialEndSecs' and 'PupDispDropSecs' columns.
+    Returns:
+    pd.DataFrame: Updated DataFrame with additional columns for speed ('speed_cm/s'), 
+                  distance to pup ('distance_to_pup'), and head angle to pup ('head_angle_to_pup_degrees').
+                  These columns have default NaN values for frames that don't belong to any trial.
+    """
+
 
     # for each trial, get the start and end frames
     end_times, start_times = df_summary['BehavRecdTrialEndSecs'], df_summary['PupDispDropSecs']
