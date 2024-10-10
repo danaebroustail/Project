@@ -13,6 +13,23 @@ warnings.filterwarnings('ignore')
 def convert_seconds_to_frame(seconds, frame_rate = 30):
     return round(seconds*frame_rate)
 
+def extract_trial_from_DLC(df_DLC, df_summary, 
+                            trial_num, trial_num_col = 'TrialNum',
+                            trial_start_col = 'PupDispDropSecs', trial_end_col = 'BehavRecdTrialEndSecs',
+                            time_col = "time_seconds", frame_index_col = 'frame_index'):
+
+    # get the trial start and end times
+    trial_start_time = df_summary.loc[df_summary[trial_num_col] == trial_num, trial_start_col].values[0]
+    trial_end_time = df_summary.loc[df_summary[trial_num_col] == trial_num, trial_end_col].values[0]
+
+    # convert trial start and end times to frame indices
+    start_frame, end_frame = convert_seconds_to_frame(trial_start_time), convert_seconds_to_frame(trial_end_time)
+    
+    # extract the trial data
+    mask = (df_DLC[frame_index_col] >= start_frame) & (df_DLC[frame_index_col] <= end_frame)
+
+    return df_DLC.loc[mask, :]
+
 
 ###### ----------- Basic Feature extraction from DLC file ------------ #####
 # Notes:
