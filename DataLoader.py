@@ -62,12 +62,14 @@ class DataLoader:
 
     def process_behav_dlc(self, path,
                         num_header_rows = 3,
-                        change_column_names=True,
+                        change_column_names = True,
                         drop_wall_columns = True,
                         drop_inital_frames = True,
                         frame_index_to_drop = 150,
                         create_time_seconds = True,
-                        framerate = 30):
+                        framerate = 30,
+                        frame_index_col = 'frame_index',
+                        time_seconds_col = 'time_seconds'):
         
         """
         Processes a DataFrame containing behavioral data from DeepLabCut (DLC).
@@ -94,19 +96,19 @@ class DataLoader:
         # ----- 1. Change column names
         if change_column_names:
             # concatenate the first two rows and join by by '_' to generate new column names
-            new_columns = ['frame_index'] + [el1 + '_' + el2 for el1, el2 in zip(bodyparts, coords)]
+            new_columns = [frame_index_col] + [el1 + '_' + el2 for el1, el2 in zip(bodyparts, coords)]
             # rename the columns
             df.columns = new_columns
 
         # ----- 2. Drop rows until frame_index 150
         if drop_inital_frames:
-            df = df[df['frame_index'] > frame_index_to_drop]
+            df = df[df[frame_index_col] > frame_index_to_drop]
 
         # ----- 3. Create time_seconds column
         if create_time_seconds:
-            df['time_seconds'] = df['frame_index'] / framerate
+            df[time_seconds_col] = df[frame_index_col] / framerate
             # redefine order of columns in dataframe
-            df = df[['frame_index', 'time_seconds'] + [col for col in df.columns if col not in ['frame_index', 'time_seconds']]]
+            df = df[[frame_index_col, time_seconds_col] + [col for col in df.columns if col not in [frame_index_col, time_seconds_col]]]
 
         # ----- 4. Drop columns 
         if drop_wall_columns:
@@ -116,21 +118,22 @@ class DataLoader:
         return df
         
 
-    def convert_to_df(self, path):
+    def convert_to_df(self, path, filters_dlc = ['resnet50', 'dlc']):
         """
         Converts a file at the given path to a pandas DataFrame.
         Parameters:
-        path (str): The file path to the data file. The file can be a CSV or an Excel file.
+            - path (str): The file path to the data file. The file can be a CSV or an Excel file.
+            - filters_dlc (list, optional): A list of strings to filter the DLC files by. Defaults to ['resnet50', 'dlc'].
         Returns:
         pandas.DataFrame: The data from the file as a pandas DataFrame.
         Notes:
-        - If the file is a CSV and contains 'resnet50' or 'dlc' in its name (case insensitive), 
+            - If the file is a CSV and contains 'resnet50' or 'dlc' in its name (case insensitive), 
         the DataFrame will be processed by the `process_behav_dlc` function.
-        - The function currently supports only CSV and Excel files.
+            - The function currently supports only CSV and Excel files.
         """
 
         if path.endswith('.csv'):
-            if 'resnet50' in path.lower() or 'dlc' in path.lower():
+            if any([f in path.lower() for f in filters_dlc]):
                 df = self.process_behav_dlc(path)
             else:
                 df = pd.read_csv(path)
