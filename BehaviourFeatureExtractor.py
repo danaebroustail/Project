@@ -31,12 +31,12 @@ def compute_speed(df_DLC, x_col, y_col, speed_col, time_col = 'time_seconds'):
     return df_DLC
 
 def compute_distance_to_pup(df_DLC,
-                            msTop_x_col = 'msTop_x', msTop_y_col = 'msTop_y',
+                            x_col = 'msTop_x', y_col = 'msTop_y',
                             pup_x_col = 'pup_x', pup_y_col = 'pup_y',
                             distance_col = 'distance_to_pup'):
     # compute distance to pup
 
-    distance = np.sqrt((df_DLC[msTop_x_col] - df_DLC[pup_x_col])**2 + (df_DLC[msTop_y_col] - df_DLC[pup_y_col])**2)
+    distance = np.sqrt((df_DLC[x_col] - df_DLC[pup_x_col])**2 + (df_DLC[y_col] - df_DLC[pup_y_col])**2)
     df_DLC[distance_col] = distance 
     return df_DLC
 

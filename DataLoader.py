@@ -8,15 +8,15 @@ class DataLoader:
                  file_extensions = ['.csv', '.xlsx'],
                  filters_dlc = ['resnet50', 'dlc']):
         
-        self.data_dir = data_dir
-        self.file_extensions = file_extensions
-        self.df_dict = self.find_paths_main(data_dir)
-
         # DLC specific parameters   
         self.frame_index_col = frame_index_col # frame column name in the DLC files
         self.time_seconds_col = time_col # time column name in the DLC files
         self.filters_dlc = filters_dlc # filters for DLC files
- 
+
+        self.data_dir = data_dir
+        self.file_extensions = file_extensions
+        self.df_dict = self.find_paths_main(data_dir)
+
     def find_paths_main(self, data_dir):
         """
         Main function to find paths in the given directory.
