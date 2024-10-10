@@ -3,10 +3,17 @@ import os
 
 class DataLoader:
 
-    def __init__(self, data_dir, file_extensions = ['.csv', '.xlsx']):
+    def __init__(self, data_dir, frame_index_col = 'frame_index',
+                 time_col = 'time_seconds',
+                 file_extensions = ['.csv', '.xlsx'],
+                 filters_dlc = ['resnet50', 'dlc']):
+        
         self.data_dir = data_dir
         self.file_extensions = file_extensions
         self.df_dict = self.find_paths_main(data_dir)
+        self.frame_index_col = frame_index_col
+        self.time_seconds_col = time_col
+        self.filters_dlc = filters_dlc
 
     def find_paths_main(self, data_dir):
         """
@@ -56,7 +63,7 @@ class DataLoader:
             elif item.endswith(tuple(self.file_extensions)):
                 #print(f"Found a file at path {path_dir}")
                 path_item = os.path.join(path_dir, item)
-                df = self.convert_to_df(path_item)
+                df = self.convert_to_df(path_item, self.filters_dlc)
 
                 d[path_item] = {"filename": item, "df": df}
 
@@ -118,12 +125,12 @@ class DataLoader:
         return df
         
 
-    def convert_to_df(self, path, filters_dlc = ['resnet50', 'dlc']):
+    def convert_to_df(self, path, filters_dlc):
         """
         Converts a file at the given path to a pandas DataFrame.
         Parameters:
             - path (str): The file path to the data file. The file can be a CSV or an Excel file.
-            - filters_dlc (list, optional): A list of strings to filter the DLC files by. Defaults to ['resnet50', 'dlc'].
+            - filters_dlc (list): A list of strings to filter the DLC files by. Defaults to ['resnet50', 'dlc'].
         Returns:
         pandas.DataFrame: The data from the file as a pandas DataFrame.
         Notes:
@@ -134,7 +141,8 @@ class DataLoader:
 
         if path.endswith('.csv'):
             if any([f in path.lower() for f in filters_dlc]):
-                df = self.process_behav_dlc(path)
+                df = self.process_behav_dlc(path, frame_index_col = self.frame_index_col,
+                                            time_seconds_col = self.time_seconds_col)
             else:
                 df = pd.read_csv(path)
 
