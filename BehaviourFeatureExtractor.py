@@ -7,7 +7,18 @@ import warnings
 # Suppress FutureWarning messages
 warnings.filterwarnings('ignore') 
 
-# the following utility functions assume that the input is a processed DLC file.
+
+###### ------------------- Utility functions ------------------------- #####
+
+def convert_seconds_to_frame(seconds, frame_rate = 30):
+    return round(seconds*frame_rate)
+
+
+###### ----------- Basic Feature extraction from DLC file ------------ #####
+# Notes:
+# - the following utility functions assume that the input is a processed DLC file.
+
+
 def compute_speed(df_DLC):
 
     # compute speed
@@ -93,7 +104,7 @@ def extract_base_parameters(df_DLC, df_summary):
     # iterate over each trial
     for end, start, trial_num in zip(end_times, start_times, trial_nums):
             # compute frame indices
-            end_frame, start_frame = round(end*30), round(start*30)
+            end_frame, start_frame = convert_seconds_to_frame(end), convert_seconds_to_frame(start)
 
             print(f"Processing trial {trial_num} Start frame: {start_frame} End frame: {end_frame}")
 
@@ -115,7 +126,7 @@ def extract_base_parameters(df_DLC, df_summary):
 
 
 
-#### Plotting utility functions #####
+#### ------------ Plotting utility functions ------------- #####
 
 def plot_mouse_angle_to_pup(trial_df_DLC,
                             ylim = None,
@@ -155,3 +166,5 @@ def plot_mouse_angle_to_pup(trial_df_DLC,
     ax.set_title("Angle between mouse head direction and pup direction: " + str(angle) + " degrees")
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
+
+
