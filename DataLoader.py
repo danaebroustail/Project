@@ -11,10 +11,12 @@ class DataLoader:
         self.data_dir = data_dir
         self.file_extensions = file_extensions
         self.df_dict = self.find_paths_main(data_dir)
-        self.frame_index_col = frame_index_col
-        self.time_seconds_col = time_col
-        self.filters_dlc = filters_dlc
 
+        # DLC specific parameters   
+        self.frame_index_col = frame_index_col # frame column name in the DLC files
+        self.time_seconds_col = time_col # time column name in the DLC files
+        self.filters_dlc = filters_dlc # filters for DLC files
+ 
     def find_paths_main(self, data_dir):
         """
         Main function to find paths in the given directory.
@@ -63,7 +65,7 @@ class DataLoader:
             elif item.endswith(tuple(self.file_extensions)):
                 #print(f"Found a file at path {path_dir}")
                 path_item = os.path.join(path_dir, item)
-                df = self.convert_to_df(path_item, self.filters_dlc)
+                df = self.convert_to_df(path_item)
 
                 d[path_item] = {"filename": item, "df": df}
 
@@ -125,12 +127,11 @@ class DataLoader:
         return df
         
 
-    def convert_to_df(self, path, filters_dlc):
+    def convert_to_df(self, path):
         """
         Converts a file at the given path to a pandas DataFrame.
         Parameters:
             - path (str): The file path to the data file. The file can be a CSV or an Excel file.
-            - filters_dlc (list): A list of strings to filter the DLC files by. Defaults to ['resnet50', 'dlc'].
         Returns:
         pandas.DataFrame: The data from the file as a pandas DataFrame.
         Notes:
@@ -140,7 +141,7 @@ class DataLoader:
         """
 
         if path.endswith('.csv'):
-            if any([f in path.lower() for f in filters_dlc]):
+            if any([f in path.lower() for f in self.filters_dlc]):
                 df = self.process_behav_dlc(path, frame_index_col = self.frame_index_col,
                                             time_seconds_col = self.time_seconds_col)
             else:
