@@ -33,16 +33,14 @@ class BehaviourFeatureExtractor:
         self.frame_index_col = self.DLC_cols['frame']
         self.frame_rate = self.config['frame_rate']
 
-        pass
-
     def extract_trial_from_DLC(self, df_DLC, df_summary, 
-                                trial_num, frame_rate = 30):
+                                trial_num):
         # get the trial start and end times
         trial_start_time = df_summary.loc[df_summary[self.DLC_summary_cols["trial_num"]] == trial_num, self.DLC_summary_cols["pup_displacement"]].values[0]
         trial_end_time = df_summary.loc[df_summary[self.DLC_summary_cols["trial_num"]] == trial_num, self.DLC_summary_cols["trial_end"]].values[0]
 
         # convert trial start and end times to frame indices
-        start_frame, end_frame = convert_seconds_to_frame(trial_start_time, frame_rate), convert_seconds_to_frame(trial_end_time, frame_rate)
+        start_frame, end_frame = convert_seconds_to_frame(trial_start_time, self.frame_rate), convert_seconds_to_frame(trial_end_time, self.frame_rate)
         
         # extract the trial data
         mask = (df_DLC[self.frame_index_col] >= start_frame) & (df_DLC[self.frame_index_col] <= end_frame)
