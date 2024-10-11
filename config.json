@@ -1,0 +1,57 @@
+{ "DLC_columns": {
+    "centerNest": {"x": "centerNest_x",
+                   "y": "centerNest_y",
+                   "likelihood": "centerNest_likelihood",
+                   "color": "green"},
+    "nose": {"x": "nose_x",
+             "y": "nose_y",
+             "color": "magenta",
+              "likelihood": "nose_likelihood"},
+    "earRight": {"x": "earRight_x",
+                 "y": "earRight_y",
+                 "color": "grey",
+                 "likelihood": "earRight_likelihood"},
+    "earLeft": {"x": "earLeft_x",
+                "y": "earLeft_y",
+                "color": "grey",
+                "likelihood": "earLeft_likelihood"},
+    "tailBase": {"x": "tailBase_x",
+                 "y": "tailBase_y",
+                "color": "purple",
+                 "likelihood": "tailBase_likelihood"},
+    "msTop": {"x": "msTop_x",
+              "y": "msTop_y",
+              "color": "black",
+              "likelihood": "msTop_likelihood"},
+    "endHeadbar": {"x": "endHeadbar_x",
+                   "y": "endHeadbar_y",
+                   "color": "orange",
+                   "likelihood": "endHeadbar_likelihood"},
+    "pup": {"x": "pup_x",
+            "y": "pup_y",
+            "color": "blue",
+            "likelihood": "pup_likelihood"},
+    "frame": "frame_index",
+    "time": "time_seconds"
+},
+
+"DLC_summary_columns": 
+{
+    "trial_end" : "BehavRecdTrialEndSecs",
+    "trial_num" : "TrialNum",
+    "pup_displacement" : "PupDispDropSecs",
+    "mouse_first_pick_up": "MouseFirstPickUpSecs",
+    "pup_drop_nest": "DropPupNestSecs"
+},
+
+"DLC_behaviour_columns": {
+    "pup_speed" : "pup_speed_px/s",
+    "mouse_speed" : "ms_speed_px/s",
+    "distance_mouse_pup" : "distance_mouse_to_pup",
+    "distance_head_pup" : "distance_head_to_pup",
+    "head_angle_to_pup" : "head_angle_to_pup_degrees"
+},
+
+"frame_rate": 30
+
+}
