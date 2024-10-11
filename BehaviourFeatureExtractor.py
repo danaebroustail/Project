@@ -122,7 +122,7 @@ def extract_base_parameters(df_DLC, df_summary,
                             head_angle_to_pup_col = 'head_angle_to_pup_degrees'):
     """
     Extracts base parameters such as speed, distance to pup, and head angle to pup for each trial 
-    from the given DataFrame.
+    from the given DataFrame. Updates a dictionary mapping trial number to the extracted trial data.
     Parameters:
     df_DLC (pd.DataFrame): DataFrame containing DeepLabCut (DLC) tracking data with a 'frame_index' column.
     df_summary (pd.DataFrame): DataFrame containing summary information for each trial, including 
@@ -131,6 +131,7 @@ def extract_base_parameters(df_DLC, df_summary,
     pd.DataFrame: Updated DataFrame with additional columns for speed ('speed_cm/s'), 
                   distance to pup ('distance_to_pup'), and head angle to pup ('head_angle_to_pup_degrees').
                   These columns have default NaN values for frames that don't belong to any trial.
+    trials_dict (dict): A dictionary containing the extracted trial data for each trial.
     """
 
     # for each trial, get the start and end frames
@@ -142,6 +143,8 @@ def extract_base_parameters(df_DLC, df_summary,
     df_DLC[distance_col_head_pup] = np.nan
     df_DLC[distance_col_mouse_pup] = np.nan
     df_DLC[head_angle_to_pup_col] = np.nan
+
+    trials_dict = {}
 
     # iterate over each trial
     for end, start, trial_num in zip(end_times, start_times, trial_nums):
@@ -175,10 +178,14 @@ def extract_base_parameters(df_DLC, df_summary,
                                                   pup_x_col = pup_x_col, pup_y_col = pup_y_col,
                                                   head_angle_to_pup_col = head_angle_to_pup_col)
             
+            # update the dictionary with the trial data
+            trials_dict[trial_num] = trial_DLC
+            
             # update the dataframe
             df_DLC.loc[mask, :] = trial_DLC
 
-    return df_DLC
+
+    return df_DLC, trials_dict
 
 
 
