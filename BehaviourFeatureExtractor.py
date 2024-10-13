@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import random
+import json
 import warnings
 
 # Suppress FutureWarning messages
@@ -14,8 +15,6 @@ def convert_seconds_to_frame(seconds, frame_rate = 30):
     return round(seconds*frame_rate)
 
 
-
-
 ###### ----------- Basic Feature extraction from DLC file ------------ #####
 # Notes:
 # - the following utility functions assume that the input is a processed DLC file.
@@ -24,8 +23,10 @@ class BehaviourFeatureExtractor:
 
     def __init__(self, path_to_config_file):
 
-        # read .json config file for DLC
-        self.config = pd.read_json(path_to_config_file)
+        # read .json config file for 
+        with open(path_to_config_file) as f:
+            self.config = json.load(f)
+
         self.DLC_cols = self.config['DLC_columns']
         self.DLC_summary_cols = self.config['DLC_summary_columns']
         self.DLC_behaviour_cols = self.config['DLC_behaviour_columns']
@@ -114,8 +115,7 @@ class BehaviourFeatureExtractor:
         
         return df_DLC
 
-    def extract_base_parameters(self, df_DLC, df_summary,
-                                frame_index_col = 'frame_index'
+    def extract_base_parameters(self, df_DLC, df_summary
                                 ):
         """
         Extracts base parameters such as speed, distance to pup, and head angle to pup for each trial 
@@ -162,7 +162,7 @@ class BehaviourFeatureExtractor:
                 print(f"Processing trial {trial_num} Start frame: {start_frame} End frame: {end_frame}")
 
                 # get the data for the trial
-                mask = (df_DLC[frame_index_col] >= start_frame) & (df_DLC[frame_index_col] <= end_frame)
+                mask = (df_DLC[self.frame_index_col] >= start_frame) & (df_DLC[self.frame_index_col] <= end_frame)
                 trial_DLC = df_DLC.loc[mask, :] 
 
                 # compute speed
@@ -237,7 +237,7 @@ def plot_mouse_angle_to_pup(trial_df_DLC,
     if xlim is None or ylim is None:
         xlim, ylim =  max(trial_df_DLC[msTop_x_col].max(), trial_df_DLC[pup_x_col].max()), max(trial_df_DLC[msTop_y_col].max(), trial_df_DLC[pup_y_col].max())
 
-    trial_1_DLC_frame.plot(x=self.DLC_cols["earRight"]["x"], y=self.DLC_cols["earLeft"], style='o', ax=ax, xlim=(0, xlim), ylim=(0, ylim), color = 'black')
+    trial_1_DLC_frame.plot(x=earRight_x_col, y=earLeft_y_col, style='o', ax=ax, xlim=(0, xlim), ylim=(0, ylim), color = 'black')
     trial_1_DLC_frame.plot(x=earLeft_x_col, y=earLeft_y_col, style='o', ax=ax, xlim=(0, xlim), ylim=(0, ylim), color = 'black')
     trial_1_DLC_frame.plot(x=nose_x_col, y=nose_y_col, style='o', ax=ax, xlim=(0, xlim), ylim=(0, ylim), color = 'red')
     trial_1_DLC_frame.plot(x=pup_x_col, y=pup_y_col, style='o', ax=ax,xlim=(0, xlim), ylim=(0, ylim), color = 'purple')
