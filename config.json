@@ -52,6 +52,8 @@
     "head_angle_to_pup" : "head_angle_to_pup_degrees"
 },
 
-"frame_rate": 30
+"frame_rate": 30,
+"frame_index_to_drop": 150,
+"dlc_file_tags": ["resnet50", "dlc"]
 
 }

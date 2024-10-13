@@ -1,21 +1,27 @@
 import pandas as pd
 import os
+import json
 
 class DataLoader:
 
-    def __init__(self, data_dir, frame_index_col = 'frame_index',
-                 time_col = 'time_seconds',
-                 file_extensions = ['.csv', '.xlsx'],
-                 filters_dlc = ['resnet50', 'dlc']):
+    def __init__(self, data_dir, path_to_config_file,
+                 file_extensions = ['.csv', '.xlsx']):
         
-        # DLC specific parameters   
-        self.frame_index_col = frame_index_col # frame column name in the DLC files
-        self.time_seconds_col = time_col # time column name in the DLC files
-        self.filters_dlc = filters_dlc # filters for DLC files
+        with open(path_to_config_file) as f:
+            self.config = json.load(f)
 
+        # DLC processing parameters
+        self.frame_index_col = self.config["DLC_columns"]["frame"]
+        self.time_seconds_col = self.config["DLC_columns"]["time"]
+        self.frame_rate = self.config["frame_rate"]
+        self.frame_index_to_drop = self.config["frame_index_to_drop"]   
+        self.filters_dlc = self.config["dlc_file_tags"] # filters for DLC files
+        
+        # Data directory and file extensions
         self.data_dir = data_dir
         self.file_extensions = file_extensions
         self.df_dict = self.find_paths_main(data_dir)
+
 
     def find_paths_main(self, data_dir):
         """
@@ -76,7 +82,7 @@ class DataLoader:
                         drop_inital_frames = True,
                         frame_index_to_drop = 150,
                         create_time_seconds = True,
-                        framerate = 30,
+                        frame_rate = 30,
                         frame_index_col = 'frame_index',
                         time_seconds_col = 'time_seconds'):
         
@@ -115,7 +121,7 @@ class DataLoader:
 
         # ----- 3. Create time_seconds column
         if create_time_seconds:
-            df[time_seconds_col] = df[frame_index_col] / framerate
+            df[time_seconds_col] = df[frame_index_col] / frame_rate
             # redefine order of columns in dataframe
             df = df[[frame_index_col, time_seconds_col] + [col for col in df.columns if col not in [frame_index_col, time_seconds_col]]]
 
@@ -142,8 +148,11 @@ class DataLoader:
 
         if path.endswith('.csv'):
             if any([f in path.lower() for f in self.filters_dlc]):
-                df = self.process_behav_dlc(path, frame_index_col = self.frame_index_col,
-                                            time_seconds_col = self.time_seconds_col)
+                df = self.process_behav_dlc(path, 
+                                            frame_index_to_drop=self.frame_index_to_drop,
+                                            frame_index_col = self.frame_index_col,
+                                            time_seconds_col = self.time_seconds_col,
+                                            frame_rate = self.frame_rate)
             else:
                 df = pd.read_csv(path)
 
