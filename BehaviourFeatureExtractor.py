@@ -33,6 +33,8 @@ class BehaviourFeatureExtractor:
         self.time_col = self.DLC_cols['time']
         self.frame_index_col = self.DLC_cols['frame']
         self.frame_rate = self.config['frame_rate']
+        self.minimum_distance_to_nest = self.config['minimum_distance_to_nest']
+        self.likelihood_threshold = self.config['likelihood_threshold']
 
     def extract_trial_from_DLC(self, df_DLC, df_summary, 
                                 trial_num):
@@ -114,6 +116,35 @@ class BehaviourFeatureExtractor:
         df_DLC[head_angle_to_pup_col] = angle * 180/np.pi
         
         return df_DLC
+    
+    def flag_nest_coordinates(self, df_dlc, in_nest_col = "in_nest",
+                                x = "msTop_x", y = "msTop_y",
+                                nest_coord_x = "centerNest_x", nest_coord_y = "centerNest_y",
+                                minimum_distance_to_nest = 40):
+        
+        """
+        Flags the coordinates in the DataFrame that are within a specified distance to the nest.
+        Parameters:
+            df_dlc (pd.DataFrame): DataFrame containing the coordinates and nest information.
+            in_nest_col (str, optional): Column name to store the flag indicating if the coordinates are in the nest. Default is "in_nest".
+            x (str, optional): Column name for the x-coordinate. Default is "msTop_x".
+            y (str, optional): Column name for the y-coordinate. Default is "msTop_y".
+            nest_coord_x (str, optional): Column name for the x-coordinate of the nest center. Default is "centerNest_x".
+            nest_coord_y (str, optional): Column name for the y-coordinate of the nest center. Default is "centerNest_y".
+            minimum_distance_to_nest (float, optional): Minimum distance to the nest to consider the coordinates as in the nest. Default is 40.
+        
+        Returns:
+            pd.DataFrame: DataFrame with an additional column indicating if the coordinates are in the nest.
+        """
+
+        nest_coord_x_avg = df_dlc[nest_coord_x].mean()
+        nest_coord_y_avg = df_dlc[nest_coord_y].mean()
+
+        distance_to_nest = np.sqrt((df_dlc[x] - nest_coord_x_avg)**2 + (df_dlc[y] - nest_coord_y_avg)**2)
+
+        df_dlc[in_nest_col] = distance_to_nest < minimum_distance_to_nest
+
+        return df_dlc
 
     def extract_base_parameters(self, df_DLC, df_summary
                                 ):
@@ -137,6 +168,7 @@ class BehaviourFeatureExtractor:
         distance_col_mouse_pup = self.DLC_behaviour_cols["distance_mouse_pup"]
         distance_col_head_pup = self.DLC_behaviour_cols["distance_head_pup"]
         head_angle_to_pup_col = self.DLC_behaviour_cols["head_angle_to_pup"]
+        
 
         # for each trial, get the start and end frames
         trial_end_col = self.DLC_summary_cols["trial_end"]
@@ -164,6 +196,17 @@ class BehaviourFeatureExtractor:
                 # get the data for the trial
                 mask = (df_DLC[self.frame_index_col] >= start_frame) & (df_DLC[self.frame_index_col] <= end_frame)
                 trial_DLC = df_DLC.loc[mask, :] 
+                
+
+                # compute in_nest coordinates
+                trial_DLC = self.flag_nest_coordinates(trial_DLC,
+                                                        in_nest_col = self.DLC_behaviour_cols["in_nest"],
+                                                        x = self.DLC_cols["msTop"]["x"], y = self.DLC_cols["msTop"]["y"],
+                                                        nest_coord_x = self.DLC_cols["centerNest"]["x"], nest_coord_y = self.DLC_cols["centerNest"]["y"],
+                                                        minimum_distance_to_nest = self.minimum_distance_to_nest)
+            
+                # remove and interpolate missing values
+
 
                 # compute speed
                 trial_DLC = self.compute_speed(trial_DLC,

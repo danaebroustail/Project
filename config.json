@@ -49,11 +49,14 @@
     "mouse_speed" : "ms_speed_px/s",
     "distance_mouse_pup" : "distance_mouse_to_pup",
     "distance_head_pup" : "distance_head_to_pup",
-    "head_angle_to_pup" : "head_angle_to_pup_degrees"
+    "head_angle_to_pup" : "head_angle_to_pup_degrees",
+    "in_nest" : "in_nest"
 },
 
 "frame_rate": 30,
 "frame_index_to_drop": 150,
-"dlc_file_tags": ["resnet50", "dlc"]
+"dlc_file_tags": ["resnet50", "dlc"],
+"mimimum_distance_to_nest": 40,
+"likelihood_threshold": 0.8
 
 }
