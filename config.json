@@ -56,7 +56,7 @@
 "frame_rate": 30,
 "frame_index_to_drop": 150,
 "dlc_file_tags": ["resnet50", "dlc"],
-"mimimum_distance_to_nest": 40,
+"minimum_distance_to_nest": 40,
 "likelihood_threshold": 0.8
 
 }
