@@ -223,8 +223,9 @@ class BehaviourFeatureExtractor:
                                                         nest_coord_x = self.DLC_cols["centerNest"]["x"], nest_coord_y = self.DLC_cols["centerNest"]["y"],
                                                         minimum_distance_to_nest = self.minimum_distance_to_nest)
             
-                # remove and interpolate missing values
-
+                # remove and interpolate low likelihood values for all DLC columns, ignoring nest coordinates
+                if interpolate_low_likelihoods == True:
+                    trial_DLC = self.filter_low_likelihoods_and_interpolate(trial_DLC, self.DLC_cols, self.likelihood_threshold)
 
                 # compute speed                
                 trial_DLC = self.compute_speed(trial_DLC,
