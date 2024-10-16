@@ -76,7 +76,7 @@ class BehaviourFeatureExtractor:
                                 head_angle_to_pup_col = 'head_angle_to_pup_degrees'):
 
         # define mouse head direction with respect to average of ears and nose
-        earRight_x, earRight_y = df_DLC[self.DLC_cols["earRight"]["x"]], df_DLC[self.DLC_cols["earRight"]["x"]]
+        earRight_x, earRight_y = df_DLC[self.DLC_cols["earRight"]["x"]], df_DLC[self.DLC_cols["earRight"]["y"]]
         earLeft_x, earLeft_y = df_DLC[self.DLC_cols["earLeft"]["x"]], df_DLC[self.DLC_cols["earLeft"]["y"]]
         nose_x, nose_y = df_DLC[self.DLC_cols["nose"]["x"]], df_DLC[self.DLC_cols["nose"]["y"]]
         pup_x, pup_y  = df_DLC[self.DLC_cols["pup"]["x"]], df_DLC[self.DLC_cols["pup"]["y"]]
@@ -145,6 +145,24 @@ class BehaviourFeatureExtractor:
         df_dlc[in_nest_col] = distance_to_nest < minimum_distance_to_nest
 
         return df_dlc
+    
+    def filter_low_likelihoods_and_interpolate(df_DLC, dict_body_parts_to_coords, threshold=0.7):
+        """
+        Filter out rows with low likelihoods and interpolate the missing values.
+        """
+        df = df.copy()
+        body_parts = [key for key, val in dict_body_parts_to_coords.items() if type(val) == dict and "likelihood" in val]
+        for body_part in dict_body_parts_to_coords.keys():
+            # filter out low likelihoods
+            mask = df[dict_body_parts_to_coords[body_part]["likelihood"]] < threshold
+            # interpolate the missing values
+            df[dict_body_parts_to_coords[body_part]["x"]][mask] = np.nan
+            df[dict_body_parts_to_coords[body_part]["y"]][mask] = np.nan
+
+            df[dict_body_parts_to_coords[body_part]["x"]] = df[dict_body_parts_to_coords[body_part]["x"]].interpolate()
+            df[dict_body_parts_to_coords[body_part]["y"]] = df[dict_body_parts_to_coords[body_part]["y"]].interpolate()
+        
+        return df
 
     def extract_base_parameters(self, df_DLC, df_summary
                                 ):
@@ -282,7 +300,7 @@ def plot_mouse_angle_to_pup(trial_df_DLC,
     if xlim is None or ylim is None:
         xlim, ylim =  max(trial_df_DLC[msTop_x_col].max(), trial_df_DLC[pup_x_col].max()), max(trial_df_DLC[msTop_y_col].max(), trial_df_DLC[pup_y_col].max())
 
-    trial_1_DLC_frame.plot(x=earRight_x_col, y=earLeft_y_col, style='o', ax=ax, xlim=(0, xlim), ylim=(0, ylim), color = 'black')
+    trial_1_DLC_frame.plot(x=earRight_x_col, y=earRight_y_col, style='o', ax=ax, xlim=(0, xlim), ylim=(0, ylim), color = 'black')
     trial_1_DLC_frame.plot(x=earLeft_x_col, y=earLeft_y_col, style='o', ax=ax, xlim=(0, xlim), ylim=(0, ylim), color = 'black')
     trial_1_DLC_frame.plot(x=nose_x_col, y=nose_y_col, style='o', ax=ax, xlim=(0, xlim), ylim=(0, ylim), color = 'red')
     trial_1_DLC_frame.plot(x=pup_x_col, y=pup_y_col, style='o', ax=ax,xlim=(0, xlim), ylim=(0, ylim), color = 'purple')
