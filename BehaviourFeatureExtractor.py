@@ -164,8 +164,7 @@ class BehaviourFeatureExtractor:
         
         return df
 
-    def extract_base_parameters(self, df_DLC, df_summary
-                                ):
+    def extract_base_parameters(self, df_DLC, df_summary, interpolate_low_likelihoods = True):
         """
         Extracts base parameters such as speed, distance to pup, and head angle to pup for each trial 
         from the given DataFrame. Updates a dictionary mapping trial number to the extracted trial data.
@@ -179,7 +178,6 @@ class BehaviourFeatureExtractor:
                     These columns have default NaN values for frames that don't belong to any trial.
         trials_dict (dict): A dictionary containing the extracted trial data for each trial.
         """ 
-
 
         pup_speed_col = self.DLC_behaviour_cols["pup_speed"]
         mouse_speed_col = self.DLC_behaviour_cols["mouse_speed"]
@@ -195,6 +193,7 @@ class BehaviourFeatureExtractor:
 
         end_times, start_times, trial_nums = df_summary[trial_end_col], df_summary[trial_start_col], df_summary[trial_num_col]
 
+        df_DLC = df_DLC.copy()
         # create NaN columns for speed, distance to pup and head angle to pup
         df_DLC[mouse_speed_col] = np.nan
         df_DLC[pup_speed_col] = np.nan
