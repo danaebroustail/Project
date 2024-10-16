@@ -146,21 +146,25 @@ class BehaviourFeatureExtractor:
 
         return df_dlc
     
-    def filter_low_likelihoods_and_interpolate(df_DLC, dict_body_parts_to_coords, threshold=0.7):
+    def filter_low_likelihoods_and_interpolate(self, df_DLC, body_parts_dict, threshold=0.8):
         """
-        Filter out rows with low likelihoods and interpolate the missing values.
+        Filter out rows with low likelihoods (when mouse is outside of nest) and interpolate the missing values.
         """
-        df = df.copy()
-        body_parts = [key for key, val in dict_body_parts_to_coords.items() if type(val) == dict and "likelihood" in val]
-        for body_part in dict_body_parts_to_coords.keys():
-            # filter out low likelihoods
-            mask = df[dict_body_parts_to_coords[body_part]["likelihood"]] < threshold
-            # interpolate the missing values
-            df[dict_body_parts_to_coords[body_part]["x"]][mask] = np.nan
-            df[dict_body_parts_to_coords[body_part]["y"]][mask] = np.nan
-
-            df[dict_body_parts_to_coords[body_part]["x"]] = df[dict_body_parts_to_coords[body_part]["x"]].interpolate()
-            df[dict_body_parts_to_coords[body_part]["y"]] = df[dict_body_parts_to_coords[body_part]["y"]].interpolate()
+        df = df_DLC.copy()
+        out_of_nest = ~df[self.DLC_behaviour_cols["in_nest"]]
+        body_parts = [key for key, val in body_parts_dict.items() if type(val) == dict and "likelihood" in val]
+    
+        for body_part in body_parts:
+            # filter out low likelihoods for points that lie outside of the nest
+            mask = (df[body_parts_dict[body_part]["likelihood"]] < threshold) & out_of_nest
+            
+            # mark missing values as nan
+            df[body_parts_dict[body_part]["x"]][mask] = np.nan
+            df[body_parts_dict[body_part]["y"]][mask] = np.nan
+            
+            # interpolate missing values unsing only outside of nest data
+            df[body_parts_dict[body_part]["x"]][out_of_nest] = df[body_parts_dict[body_part]["x"]][out_of_nest].interpolate()
+            df[body_parts_dict[body_part]["y"]][out_of_nest] = df[body_parts_dict[body_part]["y"]][out_of_nest].interpolate()
         
         return df
 
