@@ -226,26 +226,24 @@ class BehaviourFeatureExtractor:
                 # remove and interpolate missing values
 
 
-                # compute speed
-                out_of_nest = (self.DLC_behaviour_cols["in_nest"] == False)
-                
-                trial_DLC[out_of_nest] = self.compute_speed(trial_DLC[out_of_nest],
+                # compute speed                
+                trial_DLC = self.compute_speed(trial_DLC,
                                                x_col = self.DLC_cols["msTop"]["x"],
                                                y_col = self.DLC_cols["msTop"]["y"],
                                                speed_col = mouse_speed_col)
-                trial_DLC[out_of_nest] = self.compute_speed(trial_DLC[out_of_nest], x_col = self.DLC_cols["pup"]["x"],
+                trial_DLC = self.compute_speed(trial_DLC, x_col = self.DLC_cols["pup"]["x"],
                                                y_col = self.DLC_cols["pup"]["y"],
                                                speed_col = pup_speed_col)
 
                 # compute distance to pup
-                trial_DLC[out_of_nest] = self.compute_distance_to_pup(trial_DLC[out_of_nest],
+                trial_DLC = self.compute_distance_to_pup(trial_DLC,
                                                         x_col = self.DLC_cols["msTop"]["x"],
                                                         y_col = self.DLC_cols["msTop"]["y"],
                                                         pup_x_col = self.DLC_cols["pup"]["x"],
                                                         pup_y_col = self.DLC_cols["pup"]["y"],
                                                         distance_col = distance_col_mouse_pup)
                 
-                trial_DLC[out_of_nest] = self.compute_distance_to_pup(trial_DLC[out_of_nest],
+                trial_DLC = self.compute_distance_to_pup(trial_DLC,
                                                         x_col = self.DLC_cols["endHeadbar"]["x"],
                                                         y_col = self.DLC_cols["endHeadbar"]["y"],
                                                         pup_x_col = self.DLC_cols["pup"]["x"],
@@ -253,7 +251,7 @@ class BehaviourFeatureExtractor:
                                                         distance_col = distance_col_head_pup)
                 
                 # compute head angle to pup
-                trial_DLC[out_of_nest] = self.compute_head_angle_to_pup(trial_DLC[out_of_nest], add_vector_columns = False,
+                trial_DLC = self.compute_head_angle_to_pup(trial_DLC, add_vector_columns = False,
                                                     head_angle_to_pup_col = head_angle_to_pup_col)
                 
                 # update the dictionary with the trial data
