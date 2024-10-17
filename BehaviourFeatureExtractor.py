@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import random
 import json
 import warnings
+import datetime
 
 # Suppress FutureWarning messages
 warnings.filterwarnings('ignore') 
@@ -213,7 +214,11 @@ class BehaviourFeatureExtractor:
                 end_frame, start_frame = convert_seconds_to_frame(end), convert_seconds_to_frame(start)
 
                 print(f"Processing trial {trial_num} Start frame: {start_frame} End frame: {end_frame}")
+                # print time from seconds to minutes
+                print(f"Trial {trial_num} started at {datetime.timedelta(seconds=start)} and ended at {datetime.timedelta(seconds=end)}")
+                print(f"Trial {trial_num} started at {start} and ended at {end}")
 
+                
                 # get the data for the trial
                 mask = (df_DLC[self.frame_index_col] >= start_frame) & (df_DLC[self.frame_index_col] <= end_frame)
                 trial_DLC = df_DLC.loc[mask, :] 
