@@ -38,6 +38,16 @@ class BehaviourFeatureExtractor:
         self.likelihood_threshold = self.config['likelihood_threshold']
 
     def compute_average_coordinates(self, df_DLC, parts_list, average_col_name):
+        """
+        Computes the average coordinates for the parts in the parts_list and adds them to the DataFrame.
+        Parameters:
+            - df_DLC (pd.DataFrame): DataFrame containing DeepLabCut (DLC) tracking data.
+            - parts_list (list): List of body parts to compute the average coordinates for. The parts should be in the DLC_cols dictionary, see config.json.
+            - average_col_name (str): Name of the column to store the average coordinates. The column name should be in the DLC_cols dictionary, see config.json.
+
+        Returns:
+            pd.DataFrame: DataFrame with the average coordinates added as a new column.
+        """
 
         # compute average coordinates for the parts in the parts_list
         x_avg = df_DLC[[self.DLC_cols[part]["x"] for part in parts_list]].mean(axis=1)
@@ -45,9 +55,9 @@ class BehaviourFeatureExtractor:
         likelihood_avg = df_DLC[[self.DLC_cols[part]["likelihood"] for part in parts_list]].mean(axis=1)
 
         # add the average coordinates to the dataframe
-        df_DLC[self.DLC_cols[average_col_name["x"]]] = x_avg
-        df_DLC[self.DLC_cols[average_col_name["y"]]] = y_avg
-        df_DLC[self.DLC_cols[average_col_name["likelihood"]]] = likelihood_avg
+        df_DLC[self.DLC_cols[average_col_name]["x"]] = x_avg
+        df_DLC[self.DLC_cols[average_col_name]["y"]] = y_avg
+        df_DLC[self.DLC_cols[average_col_name]["likelihood"]] = likelihood_avg
 
         return df_DLC
 
@@ -169,26 +179,50 @@ class BehaviourFeatureExtractor:
 
         return df_dlc
     
-    def filter_low_likelihoods_and_interpolate(self, df_DLC, body_parts_dict, threshold=0.8):
+    def filter_low_likelihoods_and_interpolate(self, df_DLC, body_parts_dict, interpolation_method = 'time', threshold=0.8):
         """
         Filter out rows with low likelihoods (when mouse is outside of nest) and interpolate the missing values.
+
+        Parameters:
+            - df_DLC (pd.DataFrame): DataFrame containing DeepLabCut (DLC) tracking data.
+            - body_parts_dict (dict): Dictionary containing the body parts and their coordinates.
+            - interpolation_method (str, optional): The method to use for interpolation. Default is 'time'.
+            - threshold (float, optional): The likelihood threshold for filtering. Default is 0.8.
+
+        Notes: df_DLC should contain in_nest and mouse_position (average of all mouse coordinates) columns.
+
+        Returns:
+        - pd.DataFrame: DataFrame with low likelihood values interpolated.
         """
+
         df = df_DLC.copy()
         out_of_nest = ~df[self.DLC_behaviour_cols["in_nest"]]
-        body_parts = [key for key, val in body_parts_dict.items() if type(val) == dict and "likelihood" in val]
-    
+        body_parts = self.config["animal_coordinates"]
+
+        # 0 - filtering low likelihoods for combined mouse position 
+        mask = (df[self.DLC_cols["mouse_position"]["likelihood"]] < threshold) & out_of_nest
+
+        ## 1 - marking low likelihood values as NaNs
+        for i,val in enumerate(mask):
+            if val:
+                for body_part in body_parts:
+                    # if body part is lower than threshold, mark as NaN
+                    if df[body_parts_dict[body_part]["likelihood"]].iloc[i] < threshold:
+                        df[body_parts_dict[body_part]["x"]].iloc[i] = np.nan
+                        df[body_parts_dict[body_part]["y"]].iloc[i] = np.nan
+
+        ## 2 - interpolate missing values
         for body_part in body_parts:
-            # filter out low likelihoods for points that lie outside of the nest
-            mask = (df[body_parts_dict[body_part]["likelihood"]] < threshold) & out_of_nest
-            
-            # mark missing values as nan
-            df[body_parts_dict[body_part]["x"]][mask] = np.nan
-            df[body_parts_dict[body_part]["y"]][mask] = np.nan
-            
             # interpolate missing values unsing only outside of nest data
-            df[body_parts_dict[body_part]["x"]][out_of_nest] = df[body_parts_dict[body_part]["x"]][out_of_nest].interpolate()
-            df[body_parts_dict[body_part]["y"]][out_of_nest] = df[body_parts_dict[body_part]["y"]][out_of_nest].interpolate()
-        
+            df[body_parts_dict[body_part]["x"]][out_of_nest] = df[body_parts_dict[body_part]["x"]][out_of_nest].interpolate(method = interpolation_method)
+            df[body_parts_dict[body_part]["y"]][out_of_nest] = df[body_parts_dict[body_part]["y"]][out_of_nest].interpolate(method = interpolation_method)
+
+        ## 3 - recompute average coordinates head and mouse
+        df = self.compute_average_coordinates(df, self.config["animal_coordinates"],
+                                                average_col_name =  "mouse_position")
+        df = self.compute_average_coordinates(df, self.config["head_coordinates"],  average_col_name = "head_position")
+
+
         return df
 
     def extract_base_parameters(self, df_DLC, df_summary, interpolate_low_likelihoods = True):
@@ -200,8 +234,8 @@ class BehaviourFeatureExtractor:
         df_summary (pd.DataFrame): DataFrame containing summary information for each trial, including 
                                 'BehavRecdTrialEndSecs' and 'PupDispDropSecs' columns.
         Returns:
-        pd.DataFrame: Updated DataFrame with additional columns for speed ('speed_cm/s'), 
-                    distance to pup ('distance_to_pup'), and head angle to pup ('head_angle_to_pup_degrees').
+        pd.DataFrame: Updated DataFrame with additional columns for speed, 
+                    distance to pup and head angle to pup.
                     These columns have default NaN values for frames that don't belong to any trial.
         trials_dict (dict): A dictionary containing the extracted trial data for each trial.
         """ 
@@ -250,8 +284,8 @@ class BehaviourFeatureExtractor:
 
                 print(f"Processing trial {trial_num} Start frame: {start_frame} End frame: {end_frame}")
                 # print time from seconds to minutes
-                print(f"Trial {trial_num} started at {datetime.timedelta(seconds=start)} and ended at {datetime.timedelta(seconds=end)}")
-                print(f"Trial {trial_num} started at {start} and ended at {end}")
+                print(f"- Trial {trial_num} started at {datetime.timedelta(seconds=start)} and ended at {datetime.timedelta(seconds=end)}")
+                print(f"- Trial {trial_num} started at {start} and ended at {end}")
 
                 
                 # get the data for the trial
@@ -260,11 +294,13 @@ class BehaviourFeatureExtractor:
             
                 # remove and interpolate low likelihood values for all DLC columns, ignoring nest coordinates
                 if interpolate_low_likelihoods == True:
-                    trial_DLC = self.filter_low_likelihoods_and_interpolate(trial_DLC, self.DLC_cols, self.likelihood_threshold)
+                    print("----> Interpolating low likelihood values")
+                    trial_DLC = self.filter_low_likelihoods_and_interpolate(trial_DLC, body_parts_dict = self.DLC_cols, interpolation_method=self.config["interpolation_method"], threshold = self.likelihood_threshold)
 
                 ##### low level features behaviour features
 
-                # compute speed                
+                # compute speed
+                print("----> Computing speed")              
                 trial_DLC = self.compute_speed(trial_DLC,
                                                x_col = self.DLC_cols["mouse_position"]["x"],
                                                y_col = self.DLC_cols["mouse_position"]["y"],
@@ -274,6 +310,7 @@ class BehaviourFeatureExtractor:
                                                speed_col = pup_speed_col)
 
                 # compute distance to pup
+                print("----> Computing distance to pup")
                 trial_DLC = self.compute_distance_to_pup(trial_DLC,
                                                         x_col = self.DLC_cols["mouse_position"]["x"],
                                                         y_col = self.DLC_cols["mouse_position"]["y"],
@@ -282,13 +319,14 @@ class BehaviourFeatureExtractor:
                                                         distance_col = distance_col_mouse_pup)
                 
                 trial_DLC = self.compute_distance_to_pup(trial_DLC,
-                                                        x_col = self.DLC_cols["head"]["x"],
-                                                        y_col = self.DLC_cols["head"]["y"],
+                                                        x_col = self.DLC_cols["head_position"]["x"],
+                                                        y_col = self.DLC_cols["head_position"]["y"],
                                                         pup_x_col = self.DLC_cols["pup"]["x"],
                                                         pup_y_col = self.DLC_cols["pup"]["y"],
                                                         distance_col = distance_col_head_pup)
                 
                 # compute head angle to pup
+                print("----> Computing head angle to pup")
                 trial_DLC = self.compute_head_angle_to_pup(trial_DLC, add_vector_columns = False,
                                                     head_angle_to_pup_col = head_angle_to_pup_col)
                 

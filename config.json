@@ -30,12 +30,13 @@
     "pup": {"x": "pup_x",
             "y": "pup_y",
             "color": "blue",
-            "likelihéood": "pup_likelihood"},
+            "likelihood": "pup_likelihood"},
 
-    "head": {"x": "head_x",
+    "head_position": {"x": "head_x",
              "y": "head_y",
              "color": "red",
              "likelihood": "head_likelihood"},
+             
     "mouse_position": {"x": "mouse_x",
                        "y": "mouse_y",
                        "color": "yellow",
@@ -49,6 +50,8 @@
 
 "arena_bounds": {"xmin": 112, "xmax": 512, "ymin": 0, "ymax": 263},
 "nest_bounds": {"xmin": 168, "xmax": 300, "ymin": 30, "ymax": 160},
+
+"interpolation_method": "nearest",
 
 "DLC_summary_columns": 
 {
