@@ -31,7 +31,7 @@
             "y": "pup_y",
             "color": "blue",
             "likelihéood": "pup_likelihood"},
-            
+
     "head": {"x": "head_x",
              "y": "head_y",
              "color": "red",
@@ -43,6 +43,9 @@
     "frame": "frame_index",
     "time": "time_seconds"
 },
+
+"animal_coordinates": [ "nose", "earRight", "earLeft", "tailBase", "msTop", "endHeadbar"],
+"head_coordinates": ["nose", "earRight", "earLeft", "tailBase", "msTop"],
 
 "arena_bounds": {"xmin": 112, "xmax": 512, "ymin": 0, "ymax": 263},
 "nest_bounds": {"xmin": 168, "xmax": 300, "ymin": 30, "ymax": 160},
