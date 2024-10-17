@@ -96,9 +96,14 @@ class BehaviourFeatureExtractor:
         earLeft_x, earLeft_y = df_DLC[self.DLC_cols["earLeft"]["x"]], df_DLC[self.DLC_cols["earLeft"]["y"]]
         nose_x, nose_y = df_DLC[self.DLC_cols["nose"]["x"]], df_DLC[self.DLC_cols["nose"]["y"]]
         pup_x, pup_y  = df_DLC[self.DLC_cols["pup"]["x"]], df_DLC[self.DLC_cols["pup"]["y"]]
+        msTop_x, msTop_y = df_DLC[self.DLC_cols["msTop"]["x"]], df_DLC[self.DLC_cols["msTop"]["y"]]
 
         # compute between ears coordinate
         between_ears_x, between_ears_y = (earRight_x + earLeft_x)/2, (earRight_y + earLeft_y)/2
+
+        # average of between_ears and msTop
+        between_ears_x, between_ears_y = (between_ears_x + msTop_x)/2, (between_ears_y + msTop_y)/2
+
         # compute vector from nose to between ears
         mouse_dir_vector_x, mouse_dir_vector_y = nose_x - between_ears_x, nose_y - between_ears_y
         pup_dir_vector_x, pup_dir_vector_y = pup_x - between_ears_x, pup_y - between_ears_y
