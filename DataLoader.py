@@ -178,7 +178,7 @@ class DataLoader:
         return files
 
     def get_data_for_experiment(self, mouse_id: str,
-                    day:str,
+                    day = None,
                     extra_param_1 = None,
                     extra_param_2 = None):
         

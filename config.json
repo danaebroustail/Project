@@ -30,10 +30,22 @@
     "pup": {"x": "pup_x",
             "y": "pup_y",
             "color": "blue",
-            "likelihood": "pup_likelihood"},
+            "likelihéood": "pup_likelihood"},
+            
+    "head": {"x": "head_x",
+             "y": "head_y",
+             "color": "red",
+             "likelihood": "head_likelihood"},
+    "mouse_position": {"x": "mouse_x",
+                       "y": "mouse_y",
+                       "color": "yellow",
+                       "likelihood": "mouse_likelihood"},
     "frame": "frame_index",
     "time": "time_seconds"
 },
+
+"arena_bounds": {"xmin": 112, "xmax": 512, "ymin": 0, "ymax": 263},
+"nest_bounds": {"xmin": 168, "xmax": 300, "ymin": 30, "ymax": 160},
 
 "DLC_summary_columns": 
 {
@@ -54,6 +66,7 @@
 },
 
 "frame_rate": 30,
+"pixels_to_cm_ratio": 10.42,
 "frame_index_to_drop": 150,
 "dlc_file_tags": ["resnet50", "dlc"],
 "minimum_distance_to_nest": 40,

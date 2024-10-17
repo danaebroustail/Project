@@ -235,6 +235,10 @@ class BehaviourFeatureExtractor:
                 if interpolate_low_likelihoods == True:
                     trial_DLC = self.filter_low_likelihoods_and_interpolate(trial_DLC, self.DLC_cols, self.likelihood_threshold)
 
+                # mouse head average (msTop, earRight, earLeft)
+
+                # mouse general average, with tailBase, end Baseplate
+
                 # compute speed                
                 trial_DLC = self.compute_speed(trial_DLC,
                                                x_col = self.DLC_cols["msTop"]["x"],
@@ -262,6 +266,13 @@ class BehaviourFeatureExtractor:
                 # compute head angle to pup
                 trial_DLC = self.compute_head_angle_to_pup(trial_DLC, add_vector_columns = False,
                                                     head_angle_to_pup_col = head_angle_to_pup_col)
+                
+
+                # high level behaviour features
+
+                # function 1 
+
+                # function 2
                 
                 # update the dictionary with the trial data
                 trials_dict[trial_num] = trial_DLC
