@@ -37,6 +37,21 @@ class BehaviourFeatureExtractor:
         self.minimum_distance_to_nest = self.config['minimum_distance_to_nest']
         self.likelihood_threshold = self.config['likelihood_threshold']
 
+    def compute_average_coordinates(self, df_DLC, parts_list, average_col_name):
+
+        # compute average coordinates for the parts in the parts_list
+        x_avg = df_DLC[[self.DLC_cols[part]["x"] for part in parts_list]].mean(axis=1)
+        y_avg = df_DLC[[self.DLC_cols[part]["y"] for part in parts_list]].mean(axis=1)
+        likelihood_avg = df_DLC[[self.DLC_cols[part]["likelihood"] for part in parts_list]].mean(axis=1)
+
+        # add the average coordinates to the dataframe
+        df_DLC[self.DLC_cols[average_col_name["x"]]] = x_avg
+        df_DLC[self.DLC_cols[average_col_name["y"]]] = y_avg
+        df_DLC[self.DLC_cols[average_col_name["likelihood"]]] = likelihood_avg
+
+        return df_DLC
+
+
     def extract_trial_from_DLC(self, df_DLC, df_summary, 
                                 trial_num):
         # get the trial start and end times
