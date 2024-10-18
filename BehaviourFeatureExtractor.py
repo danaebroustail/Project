@@ -83,8 +83,9 @@ class BehaviourFeatureExtractor:
             distance_col_mouse_pup = self.DLC_behaviour_cols["distance_mouse_pup"]
             distance_col_head_pup = self.DLC_behaviour_cols["distance_head_pup"]
             head_angle_to_pup_col = self.DLC_behaviour_cols["head_angle_to_pup"]
+            trial_num_col = self.DLC_summary_cols["trial_num"]
 
-            parameter_cols = [pup_speed_col, mouse_speed_col, distance_col_mouse_pup, distance_col_head_pup, head_angle_to_pup_col]
+            parameter_cols = [trial_num_col, pup_speed_col, mouse_speed_col, distance_col_mouse_pup, distance_col_head_pup, head_angle_to_pup_col]
 
             ## 0. Add columns for speed, distance to pup and head angle to pup (if they don't exist)
 
@@ -151,6 +152,9 @@ class BehaviourFeatureExtractor:
             print("----> Computing head angle to pup")
             trial_DLC = self.compute_head_angle_to_pup(trial_DLC, add_vector_columns = False,
                                                 head_angle_to_pup_col = head_angle_to_pup_col)
+            
+            # d) add trial number to the dataframe
+            trial_DLC[trial_num_col] == trial_num
 
             return trial_DLC
 
@@ -302,7 +306,7 @@ class BehaviourFeatureExtractor:
 
         return df
 
-    def extract_base_parameters(self, df_DLC, df_summary, interpolate_low_likelihoods = True):
+    def process_DLC(self, df_DLC, df_summary, interpolate_low_likelihoods = True):
         """
         Extracts base parameters such as speed, distance to pup, and head angle to pup for each trial 
         from the given DataFrame. Updates a dictionary mapping trial number to the extracted trial data.
@@ -325,7 +329,6 @@ class BehaviourFeatureExtractor:
 
         # for each trial, get the start and end frames
         trial_num_col = self.DLC_summary_cols["trial_num"]
-
         trial_nums = df_summary[trial_num_col]
 
         df_DLC = df_DLC.copy()
@@ -335,6 +338,7 @@ class BehaviourFeatureExtractor:
         df_DLC[distance_col_head_pup] = np.nan
         df_DLC[distance_col_mouse_pup] = np.nan
         df_DLC[head_angle_to_pup_col] = np.nan
+        df_DLC[trial_num_col] = np.nan
 
         # compute average coordinates for the mouse
         df_DLC = self.compute_average_coordinates(df_DLC, self.config["animal_coordinates"],
@@ -410,8 +414,8 @@ class BehaviourFeatureExtractor:
                 trials_dict[trial_num] = trial_DLC
                 
                 # update the dataframe
-                # mask = df_DLC[self.DLC_summary_cols["trial_num"]] == trial_num
                 df_DLC.loc[mask_DLC, :] = trial_DLC
+                
 
 
         return df_DLC, trials_dict
