@@ -74,7 +74,7 @@ class BehaviourFeatureExtractor:
         # extract the trial data
         mask = (df_DLC[self.frame_index_col] >= start_frame) & (df_DLC[self.frame_index_col] <= end_frame)
 
-        return df_DLC.loc[mask, :]
+        return df_DLC.loc[mask, :], mask
     
     def process_trial(self, trial_df_DLC, trial_num, interpolate_low_likelihoods = True):
             
@@ -151,8 +151,6 @@ class BehaviourFeatureExtractor:
             print("----> Computing head angle to pup")
             trial_DLC = self.compute_head_angle_to_pup(trial_DLC, add_vector_columns = False,
                                                 head_angle_to_pup_col = head_angle_to_pup_col)
-            
-
 
             return trial_DLC
 
