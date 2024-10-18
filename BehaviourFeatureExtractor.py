@@ -324,14 +324,11 @@ class BehaviourFeatureExtractor:
         distance_col_mouse_pup = self.DLC_behaviour_cols["distance_mouse_pup"]
         distance_col_head_pup = self.DLC_behaviour_cols["distance_head_pup"]
         head_angle_to_pup_col = self.DLC_behaviour_cols["head_angle_to_pup"]
-        
 
         # for each trial, get the start and end frames
-        trial_end_col = self.DLC_summary_cols["trial_end"]
-        trial_start_col = self.DLC_summary_cols["pup_displacement"]
         trial_num_col = self.DLC_summary_cols["trial_num"]
 
-        end_times, start_times, trial_nums = df_summary[trial_end_col], df_summary[trial_start_col], df_summary[trial_num_col]
+        trial_nums = df_summary[trial_num_col]
 
         df_DLC = df_DLC.copy()
         # create NaN columns for speed, distance to pup and head angle to pup
@@ -357,19 +354,11 @@ class BehaviourFeatureExtractor:
         trials_dict = {}
 
         # iterate over each trial
-        for end, start, trial_num in zip(end_times, start_times, trial_nums):
-                # compute frame indices
-                end_frame, start_frame = convert_seconds_to_frame(end), convert_seconds_to_frame(start)
+        for trial_num in  trial_nums:
 
-                print(f"Processing trial {trial_num} Start frame: {start_frame} End frame: {end_frame}")
-                # print time from seconds to minutes
-                print(f"- Trial {trial_num} started at {datetime.timedelta(seconds=start)} and ended at {datetime.timedelta(seconds=end)}")
-                print(f"- Trial {trial_num} started at {start} and ended at {end}")
+                trial_DLC = self.extract_trial_from_DLC(df_DLC, df_summary, trial_num)
 
-                
-                # get the data for the trial
-                mask = (df_DLC[self.frame_index_col] >= start_frame) & (df_DLC[self.frame_index_col] <= end_frame)
-                trial_DLC = df_DLC.loc[mask, :] 
+                trial_DLC = self.process_trial(trial_DLC, trial_num, interpolate_low_likelihoods = interpolate_low_likelihoods)
             
                 # remove and interpolate low likelihood values for all DLC columns, ignoring nest coordinates
                 if interpolate_low_likelihoods == True:
