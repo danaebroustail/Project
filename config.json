@@ -64,7 +64,7 @@
 
 "DLC_behaviour_columns": {
     "pup_speed" : "pup_speed_px/s",
-    "mouse_speed" : "ms_speed_px/s",
+    "mouse_speed" : "mouse_speed_px/s",
     "distance_mouse_pup" : "distance_mouse_to_pup",
     "distance_head_pup" : "distance_head_to_pup",
     "head_angle_to_pup" : "head_angle_to_pup_degrees",

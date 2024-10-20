@@ -77,39 +77,43 @@ class BehaviourFeatureExtractor:
     
     def process_trial(self, trial_df_DLC, trial_num, interpolate_low_likelihoods = True):
             
-            pup_speed_col = self.DLC_behaviour_cols["pup_speed"]
-            mouse_speed_col = self.DLC_behaviour_cols["mouse_speed"]
-            distance_col_mouse_pup = self.DLC_behaviour_cols["distance_mouse_pup"]
-            distance_col_head_pup = self.DLC_behaviour_cols["distance_head_pup"]
-            head_angle_to_pup_col = self.DLC_behaviour_cols["head_angle_to_pup"]
-            trial_num_col = self.DLC_summary_cols["trial_num"]
+            # pup_speed_col = self.DLC_behaviour_cols["pup_speed"]
+            # mouse_speed_col = self.DLC_behaviour_cols["mouse_speed"]
+            # distance_col_mouse_pup = self.DLC_behaviour_cols["distance_mouse_pup"]
+            # distance_col_head_pup = self.DLC_behaviour_cols["distance_head_pup"]
+            # head_angle_to_pup_col = self.DLC_behaviour_cols["head_angle_to_pup"]
+            # trial_num_col = self.DLC_summary_cols["trial_num"]
 
-            parameter_cols = [trial_num_col, pup_speed_col, mouse_speed_col, distance_col_mouse_pup, distance_col_head_pup, head_angle_to_pup_col]
+            # parameter_cols = [trial_num_col, pup_speed_col, mouse_speed_col, distance_col_mouse_pup, distance_col_head_pup, head_angle_to_pup_col]
 
-            ### 0. Add columns for speed, distance to pup and head angle to pup (if they don't exist)
+            # ### 0. Add columns for speed, distance to pup and head angle to pup (if they don't exist)
 
-            for col in parameter_cols:
-                if col not in trial_df_DLC.columns:
-                    trial_df_DLC[col] = np.nan
+            # for col in parameter_cols:
+            #     if col not in trial_df_DLC.columns:
+            #         trial_df_DLC[col] = np.nan
             
+            # trial_DLC = trial_df_DLC.copy()
+
+            # ### 1. Computation of average coordinates (if they don't already exist)
+
+            # if self.DLC_cols["mouse_position"]["likelihood"] not in trial_DLC.columns:
+            #     # compute average coordinates for the mouse
+            #     trial_DLC = self.compute_average_coordinates(trial_DLC, self.config["animal_coordinates"],
+            #                                             average_col_name =  "mouse_position")
+            # if self.DLC_cols["head_position"]["likelihood"] not in trial_DLC.columns:
+            #     # compute average coordinates for the head
+            #     trial_DLC = self.compute_average_coordinates(trial_DLC, self.config["head_coordinates"], 
+            #                                                 average_col_name = "head_position")
+                
+            # if self.DLC_behaviour_cols["in_nest"] not in trial_DLC.columns:
+            #     # compute in nest coordinates
+            #     trial_DLC = self.flag_nest_coordinates(trial_DLC, in_nest_col = self.DLC_behaviour_cols["in_nest"],
+            #                                         x = self.DLC_cols["mouse_position"]["x"], y = self.DLC_cols["mouse_position"]["y"],
+            #                                         nest_bounds = self.config["nest_bounds"])
+
             trial_DLC = trial_df_DLC.copy()
 
-            ### 1. Computation of average coordinates (if they don't already exist)
-
-            if self.DLC_cols["mouse_position"]["likelihood"] not in trial_DLC.columns:
-                # compute average coordinates for the mouse
-                trial_DLC = self.compute_average_coordinates(trial_DLC, self.config["animal_coordinates"],
-                                                        average_col_name =  "mouse_position")
-            if self.DLC_cols["head_position"]["likelihood"] not in trial_DLC.columns:
-                # compute average coordinates for the head
-                trial_DLC = self.compute_average_coordinates(trial_DLC, self.config["head_coordinates"], 
-                                                            average_col_name = "head_position")
-                
-            if self.DLC_behaviour_cols["in_nest"] not in trial_DLC.columns:
-                # compute in nest coordinates
-                trial_DLC = self.flag_nest_coordinates(trial_DLC, in_nest_col = self.DLC_behaviour_cols["in_nest"],
-                                                    x = self.DLC_cols["mouse_position"]["x"], y = self.DLC_cols["mouse_position"]["y"],
-                                                    nest_bounds = self.config["nest_bounds"])
+            trial_DLC = self.check_and_insert_processed_columns(trial_DLC)
                 
             ### 2. Remove and interpolate low likelihood values for all DLC columns, ignoring nest coordinates
             if interpolate_low_likelihoods == True:
@@ -126,10 +130,10 @@ class BehaviourFeatureExtractor:
             trial_DLC = self.compute_speed(trial_DLC,
                                             x_col = self.DLC_cols["mouse_position"]["x"],
                                             y_col = self.DLC_cols["mouse_position"]["y"],
-                                            speed_col = mouse_speed_col)
+                                            speed_col = self.DLC_behaviour_cols["mouse_speed"])
             trial_DLC = self.compute_speed(trial_DLC, x_col = self.DLC_cols["pup"]["x"],
                                             y_col = self.DLC_cols["pup"]["y"],
-                                            speed_col = pup_speed_col)
+                                            speed_col = self.DLC_behaviour_cols["pup_speed"])
 
             ## --- b) compute distance to pup
             print("----> Computing distance to pup")
@@ -138,22 +142,22 @@ class BehaviourFeatureExtractor:
                                                     y_col = self.DLC_cols["mouse_position"]["y"],
                                                     pup_x_col = self.DLC_cols["pup"]["x"],
                                                     pup_y_col = self.DLC_cols["pup"]["y"],
-                                                    distance_col = distance_col_mouse_pup)
+                                                    distance_col = self.DLC_behaviour_cols["distance_mouse_pup"])
             
             trial_DLC = self.compute_distance_to_pup(trial_DLC,
                                                     x_col = self.DLC_cols["head_position"]["x"],
                                                     y_col = self.DLC_cols["head_position"]["y"],
                                                     pup_x_col = self.DLC_cols["pup"]["x"],
                                                     pup_y_col = self.DLC_cols["pup"]["y"],
-                                                    distance_col = distance_col_head_pup)
+                                                    distance_col = self.DLC_behaviour_cols["distance_head_pup"])
             
             ## --- c) compute head angle to pup
             print("----> Computing head angle to pup")
             trial_DLC = self.compute_head_angle_to_pup(trial_DLC, add_vector_columns = False,
-                                                head_angle_to_pup_col = head_angle_to_pup_col)
+                                                head_angle_to_pup_col = self.DLC_behaviour_cols["head_angle_to_pup"])
             
             # d) add trial number to the dataframe
-            trial_DLC[trial_num_col] == trial_num
+            trial_DLC[self.DLC_summary_cols["trial_num"]] == trial_num
 
             return trial_DLC
 
@@ -320,56 +324,102 @@ class BehaviourFeatureExtractor:
         trials_dict (dict): A dictionary containing the extracted trial data for each trial.
         """ 
 
-        pup_speed_col = self.DLC_behaviour_cols["pup_speed"]
-        mouse_speed_col = self.DLC_behaviour_cols["mouse_speed"]
-        distance_col_mouse_pup = self.DLC_behaviour_cols["distance_mouse_pup"]
-        distance_col_head_pup = self.DLC_behaviour_cols["distance_head_pup"]
-        head_angle_to_pup_col = self.DLC_behaviour_cols["head_angle_to_pup"]
+        # pup_speed_col = self.DLC_behaviour_cols["pup_speed"]
+        # mouse_speed_col = self.DLC_behaviour_cols["mouse_speed"]
+        # distance_col_mouse_pup = self.DLC_behaviour_cols["distance_mouse_pup"]
+        # distance_col_head_pup = self.DLC_behaviour_cols["distance_head_pup"]
+        # head_angle_to_pup_col = self.DLC_behaviour_cols["head_angle_to_pup"]
 
-        # for each trial, get the start and end frames
-        trial_num_col = self.DLC_summary_cols["trial_num"]
-        trial_nums = df_summary[trial_num_col]
+        # df_DLC = df_DLC.copy()
+        # # create NaN columns for speed, distance to pup and head angle to pup
+        # df_DLC[mouse_speed_col] = np.nan
+        # df_DLC[pup_speed_col] = np.nan
+        # df_DLC[distance_col_head_pup] = np.nan
+        # df_DLC[distance_col_mouse_pup] = np.nan
+        # df_DLC[head_angle_to_pup_col] = np.nan
+        # df_DLC[trial_num_col] = np.nan
 
+        # # compute average coordinates for the mouse
+        # df_DLC = self.compute_average_coordinates(df_DLC, self.config["animal_coordinates"],
+        #                                         average_col_name =  "mouse_position")
+        
+        # # compute average coordinates for the head
+        # df_DLC = self.compute_average_coordinates(df_DLC, self.config["head_coordinates"], 
+        #                                             average_col_name = "head_position")
+        
+        # # compute in nest coordinates
+        # df_DLC = self.flag_nest_coordinates(df_DLC, in_nest_col = self.DLC_behaviour_cols["in_nest"],
+        #                                     x = self.DLC_cols["mouse_position"]["x"], y = self.DLC_cols["mouse_position"]["y"],
+        #                                     nest_bounds = self.config["nest_bounds"])
+        
         df_DLC = df_DLC.copy()
-        # create NaN columns for speed, distance to pup and head angle to pup
-        df_DLC[mouse_speed_col] = np.nan
-        df_DLC[pup_speed_col] = np.nan
-        df_DLC[distance_col_head_pup] = np.nan
-        df_DLC[distance_col_mouse_pup] = np.nan
-        df_DLC[head_angle_to_pup_col] = np.nan
-        df_DLC[trial_num_col] = np.nan
 
-        # compute average coordinates for the mouse
-        df_DLC = self.compute_average_coordinates(df_DLC, self.config["animal_coordinates"],
-                                                average_col_name =  "mouse_position")
-        
-        # compute average coordinates for the head
-        df_DLC = self.compute_average_coordinates(df_DLC, self.config["head_coordinates"], 
-                                                    average_col_name = "head_position")
-        
-        # compute in nest coordinates
-        df_DLC = self.flag_nest_coordinates(df_DLC, in_nest_col = self.DLC_behaviour_cols["in_nest"],
-                                            x = self.DLC_cols["mouse_position"]["x"], y = self.DLC_cols["mouse_position"]["y"],
-                                            nest_bounds = self.config["nest_bounds"])
+        df_DLC = self.check_and_insert_processed_columns(df_DLC)
 
         trials_dict = {}
+        trial_nums = df_summary[self.DLC_summary_cols["trial_num"]]
 
         # iterate over each trial
         for trial_num in  trial_nums:
 
                 trial_DLC, mask_DLC = self.extract_trial_from_DLC(df_DLC, df_summary, trial_num)
-
                 trial_DLC = self.process_trial(trial_DLC, trial_num, interpolate_low_likelihoods = interpolate_low_likelihoods)
-            
-                # update the dictionary with the trial data
-                trials_dict[trial_num] = trial_DLC
                 
-                # update the dataframe
-                df_DLC.loc[mask_DLC, :] = trial_DLC
-                
-
+                trials_dict[trial_num] = trial_DLC # update the dictionary with the trial data
+                df_DLC.loc[mask_DLC, :] = trial_DLC # update the dataframe
 
         return df_DLC, trials_dict
+    
+    def check_and_insert_processed_columns(self, df):
+        """
+        Checks if the processed or extra columns are present in the DataFrame.
+        Columns are:
+            If any of the following columns are missing, they are computed and added to the DataFrame.
+            - mouse_position (average of all mouse coordinates)
+            - head_position (average of all head coordinates)
+            - in_nest (flag indicating if the mouse is in the nest)
+
+            If any of the following columns are missing, they are added to the DataFrame with NaN values:
+            - trial_num (trial number)
+            - mouse_speed (speed of the mouse)
+            - pup_speed (speed of the pup)
+            - distance_mouse_pup (distance between the mouse and the pup)
+            - distance_head_pup (distance between the head and the pup)
+            - head_angle_to_pup (angle between the head direction and the pup direction)
+            
+        Parameters:
+            - df (pd.DataFrame): DataFrame to check. Can be either a trial DataFrame or the full DLC DataFrame.
+        Returns:
+            bool: True if all columns are present, False otherwise.
+
+        """
+        df = df.copy()
+
+        coordinates_cols = [self.DLC_cols["mouse_position"]["likelihood"], self.DLC_cols["head_position"]["likelihood"]]
+        trial_num_col = [self.DLC_summary_cols["trial_num"]]
+        behavioural_cols = list(self.DLC_behaviour_cols.values())
+
+        columns = coordinates_cols + behavioural_cols + trial_num_col
+
+        for col in columns:
+            if col not in df.columns:
+                if col == self.DLC_cols["mouse_position"]["likelihood"]:
+                    df = self.compute_average_coordinates(df, self.config["animal_coordinates"],
+                                                average_col_name =  "mouse_position")
+                
+                elif col == self.DLC_cols["head_position"]["likelihood"]:
+                    df = self.compute_average_coordinates(df, self.config["head_coordinates"], 
+                                                    average_col_name = "head_position")
+
+                elif col == self.DLC_behaviour_cols["in_nest"]:
+                    df = self.flag_nest_coordinates(df, in_nest_col = self.DLC_behaviour_cols["in_nest"], 
+                                                    x = self.DLC_cols["mouse_position"]["x"], y = self.DLC_cols["mouse_position"]["y"],
+                                                    nest_bounds = self.config["nest_bounds"])
+
+                else:
+                    df[col] = np.nan
+            
+        return df
 
 
 
