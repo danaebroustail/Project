@@ -18,7 +18,6 @@ def convert_seconds_to_frame(seconds, frame_rate = 30):
 
 ###### ----------- Basic Feature extraction from DLC file ------------ #####
 # Notes:
-# - the following utility functions assume that the input is a processed DLC file.
 
 class BehaviourFeatureExtractor:
 
@@ -87,7 +86,7 @@ class BehaviourFeatureExtractor:
 
             parameter_cols = [trial_num_col, pup_speed_col, mouse_speed_col, distance_col_mouse_pup, distance_col_head_pup, head_angle_to_pup_col]
 
-            ## 0. Add columns for speed, distance to pup and head angle to pup (if they don't exist)
+            ### 0. Add columns for speed, distance to pup and head angle to pup (if they don't exist)
 
             for col in parameter_cols:
                 if col not in trial_df_DLC.columns:
@@ -95,7 +94,7 @@ class BehaviourFeatureExtractor:
             
             trial_DLC = trial_df_DLC.copy()
 
-            ## 1. Computation of average coordinates (if they don't already exist)
+            ### 1. Computation of average coordinates (if they don't already exist)
 
             if self.DLC_cols["mouse_position"]["likelihood"] not in trial_DLC.columns:
                 # compute average coordinates for the mouse
@@ -112,7 +111,7 @@ class BehaviourFeatureExtractor:
                                                     x = self.DLC_cols["mouse_position"]["x"], y = self.DLC_cols["mouse_position"]["y"],
                                                     nest_bounds = self.config["nest_bounds"])
                 
-            ## 2. Remove and interpolate low likelihood values for all DLC columns, ignoring nest coordinates
+            ### 2. Remove and interpolate low likelihood values for all DLC columns, ignoring nest coordinates
             if interpolate_low_likelihoods == True:
                 print("----> Interpolating low likelihood values")
                 trial_DLC = self.filter_low_likelihoods_and_interpolate(trial_DLC, body_parts_dict = self.DLC_cols,
@@ -120,9 +119,9 @@ class BehaviourFeatureExtractor:
                                                                         threshold = self.likelihood_threshold)
                 
             
-            ## 3. low level features behaviour features
+            ### 3. low level features behaviour features
 
-            # a) compute speed
+            ## --- a) compute speed
             print("----> Computing speed")              
             trial_DLC = self.compute_speed(trial_DLC,
                                             x_col = self.DLC_cols["mouse_position"]["x"],
@@ -132,7 +131,7 @@ class BehaviourFeatureExtractor:
                                             y_col = self.DLC_cols["pup"]["y"],
                                             speed_col = pup_speed_col)
 
-            # b) compute distance to pup
+            ## --- b) compute distance to pup
             print("----> Computing distance to pup")
             trial_DLC = self.compute_distance_to_pup(trial_DLC,
                                                     x_col = self.DLC_cols["mouse_position"]["x"],
@@ -148,7 +147,7 @@ class BehaviourFeatureExtractor:
                                                     pup_y_col = self.DLC_cols["pup"]["y"],
                                                     distance_col = distance_col_head_pup)
             
-            # c) compute head angle to pup
+            ## --- c) compute head angle to pup
             print("----> Computing head angle to pup")
             trial_DLC = self.compute_head_angle_to_pup(trial_DLC, add_vector_columns = False,
                                                 head_angle_to_pup_col = head_angle_to_pup_col)
@@ -352,8 +351,6 @@ class BehaviourFeatureExtractor:
         df_DLC = self.flag_nest_coordinates(df_DLC, in_nest_col = self.DLC_behaviour_cols["in_nest"],
                                             x = self.DLC_cols["mouse_position"]["x"], y = self.DLC_cols["mouse_position"]["y"],
                                             nest_bounds = self.config["nest_bounds"])
-        
-        # 
 
         trials_dict = {}
 
@@ -364,52 +361,6 @@ class BehaviourFeatureExtractor:
 
                 trial_DLC = self.process_trial(trial_DLC, trial_num, interpolate_low_likelihoods = interpolate_low_likelihoods)
             
-                # remove and interpolate low likelihood values for all DLC columns, ignoring nest coordinates
-                # if interpolate_low_likelihoods == True:
-                #     print("----> Interpolating low likelihood values")
-                #     trial_DLC = self.filter_low_likelihoods_and_interpolate(trial_DLC, body_parts_dict = self.DLC_cols, interpolation_method=self.config["interpolation_method"], threshold = self.likelihood_threshold)
-
-                # ##### low level features behaviour features
-
-                # # compute speed
-                # print("----> Computing speed")              
-                # trial_DLC = self.compute_speed(trial_DLC,
-                #                                x_col = self.DLC_cols["mouse_position"]["x"],
-                #                                y_col = self.DLC_cols["mouse_position"]["y"],
-                #                                speed_col = mouse_speed_col)
-                # trial_DLC = self.compute_speed(trial_DLC, x_col = self.DLC_cols["pup"]["x"],
-                #                                y_col = self.DLC_cols["pup"]["y"],
-                #                                speed_col = pup_speed_col)
-
-                # # compute distance to pup
-                # print("----> Computing distance to pup")
-                # trial_DLC = self.compute_distance_to_pup(trial_DLC,
-                #                                         x_col = self.DLC_cols["mouse_position"]["x"],
-                #                                         y_col = self.DLC_cols["mouse_position"]["y"],
-                #                                         pup_x_col = self.DLC_cols["pup"]["x"],
-                #                                         pup_y_col = self.DLC_cols["pup"]["y"],
-                #                                         distance_col = distance_col_mouse_pup)
-                
-                # trial_DLC = self.compute_distance_to_pup(trial_DLC,
-                #                                         x_col = self.DLC_cols["head_position"]["x"],
-                #                                         y_col = self.DLC_cols["head_position"]["y"],
-                #                                         pup_x_col = self.DLC_cols["pup"]["x"],
-                #                                         pup_y_col = self.DLC_cols["pup"]["y"],
-                #                                         distance_col = distance_col_head_pup)
-                
-                # # compute head angle to pup
-                # print("----> Computing head angle to pup")
-                # trial_DLC = self.compute_head_angle_to_pup(trial_DLC, add_vector_columns = False,
-                #                                     head_angle_to_pup_col = head_angle_to_pup_col)
-                
-
-                ###### high level behaviour features
-
-                # function 1 
-
-                # function 2
-                
-
                 # update the dictionary with the trial data
                 trials_dict[trial_num] = trial_DLC
                 
