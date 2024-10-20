@@ -71,7 +71,8 @@
     "in_nest" : "in_nest"
 },
 
-"frame_rate": 30,
+"frame_rate_dlc": 30,
+"frame_rate_avisoft": 500000,
 "pixels_to_cm_ratio": 10.42,
 "frame_index_to_drop": 150,
 "dlc_file_tags": ["resnet50", "dlc"],

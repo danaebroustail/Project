@@ -32,7 +32,7 @@ class BehaviourFeatureExtractor:
         self.DLC_behaviour_cols = self.config['DLC_behaviour_columns']
         self.time_col = self.DLC_cols['time']
         self.frame_index_col = self.DLC_cols['frame']
-        self.frame_rate = self.config['frame_rate']
+        self.frame_rate = self.config['frame_rate_DLC']
         self.minimum_distance_to_nest = self.config['minimum_distance_to_nest']
         self.likelihood_threshold = self.config['likelihood_threshold']
 
