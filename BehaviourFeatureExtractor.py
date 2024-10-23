@@ -226,13 +226,6 @@ class BehaviourFeatureExtractor:
             pd.DataFrame: DataFrame with an additional column indicating if the coordinates are in the nest.
         """
 
-        # nest_coord_x_avg = df_dlc[nest_coord_x].mean()
-        # nest_coord_y_avg = df_dlc[nest_coord_y].mean()
-
-        # distance_to_nest = np.sqrt((df_dlc[x] - nest_coord_x_avg)**2 + (df_dlc[y] - nest_coord_y_avg)**2)
-
-        # df_dlc[in_nest_col] = distance_to_nest < minimum_distance_to_nest
-
         in_nest = (df_dlc[x] > nest_bounds["xmin"]) & (df_dlc[x] < nest_bounds["xmax"]) & (df_dlc[y] > nest_bounds["ymin"]) & (df_dlc[y] < nest_bounds["ymax"])
         df_dlc[in_nest_col] = in_nest
 
