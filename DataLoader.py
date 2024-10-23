@@ -13,7 +13,7 @@ class DataLoader:
         # DLC processing parameters
         self.frame_index_col = self.config["DLC_columns"]["frame"]
         self.time_seconds_col = self.config["DLC_columns"]["time"]
-        self.frame_rate = self.config["frame_rate"]
+        self.frame_rate = self.config["frame_rate_dlc"]
         self.frame_index_to_drop = self.config["frame_index_to_drop"]   
         self.filters_dlc = self.config["dlc_file_tags"] # filters for DLC files
         
