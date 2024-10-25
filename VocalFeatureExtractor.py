@@ -128,12 +128,22 @@ class VocalFeatureExtractor:
     def process_USV(self, df_USV, df_summary, df_DLC):
 
         # insert and check if required output columns are present
-        df_DLC = self.check_and_insert_columns_USV(df_DLC)
+        df_DLC, df_USV = self.check_and_insert_columns_USV(df_DLC, df_USV)
 
         # iterate over all trials
+        for trial_num in df_summary[self.DLC_summary_cols["trial_num"]].unique():
 
+            trial_USV = self.extract_trial_USV(df_USV, df_summary, trial_num)
 
-        pass
+            trial_DLC, mask_DLC = self.BF.extract_trial_from_DLC(df_DLC, df_summary, trial_num)
+
+            trial_DLC, trial_USV = self.process_trial_USV(trial_USV, trial_DLC)
+
+            # update the original dataframes
+            df_USV.update(trial_USV)
+            df_DLC.update(trial_DLC)
+
+        return df_DLC, df_USV
 
     def check_and_insert_columns_USV(self, df_DLC, df_USV):
 
@@ -146,7 +156,7 @@ class VocalFeatureExtractor:
             if col not in df_USV.columns:
                 df_USV[col] = np.nan
 
-        return df_DLC
+        return df_DLC, df_USV
 
 
 
