@@ -73,7 +73,8 @@
 
 "USV_processing":
     { "input_columns": {
-        "amplitude_col": "PrincipalFrequency_kHz_",
+        "power_col": "MeanPower_dB_Hz_",
+        "frequency_col": "PrincipalFrequency_kHz_",
         "duration_col": "CallLength_s_",
         "begin_time_col": "BeginTime_s_",
         "begin_time_col": "EndTime_s_",
@@ -82,6 +83,7 @@
     "output_columns": {
         "bout_window_index": "bout_window_index",
         "call_number": "call_number",
+        "average_power": "average_power",
         "average_frequency": "average_frequency",
         "average_duration": "average_duration"
     }
