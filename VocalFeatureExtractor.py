@@ -131,11 +131,15 @@ class VocalFeatureExtractor:
 
     def process_USV(self, df_USV, df_summary, df_DLC):
 
+        trials = {}
+
         # insert and check if required output columns are present
         df_DLC, df_USV = self.check_and_insert_columns_USV(df_DLC, df_USV)
 
         # iterate over all trials
         for trial_num in df_summary[self.DLC_summary_cols["trial_num"]].unique():
+
+            trials[trial_num] = {}
 
             trial_USV = self.extract_trial_USV(df_USV, df_summary, trial_num)
 
@@ -147,7 +151,10 @@ class VocalFeatureExtractor:
             df_USV.update(trial_USV)
             df_DLC.update(trial_DLC)
 
-        return df_DLC, df_USV
+            trials[trial_num]["dlc_data"] = trial_DLC
+            trials[trial_num]["usv_data"] = trial_USV
+
+        return trials, df_DLC, df_USV
 
     def check_and_insert_columns_USV(self, df_DLC, df_USV):
 
