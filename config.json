@@ -71,6 +71,23 @@
     "in_nest" : "in_nest"
 },
 
+"USV_processing":
+    { "input_columns": {
+        "amplitude_col": "PrincipalFrequency_kHz_",
+        "duration_col": "CallLength_s_",
+        "begin_time_col": "BeginTime_s_",
+        "begin_time_col": "EndTime_s_",
+        "accepted_col": "Accepted"
+    },
+    "output_columns": {
+        "bout_window_index": "bout_window_index",
+        "call_number": "call_number",
+        "average_frequency": "average_frequency",
+        "average_duration": "average_duration"
+    }
+},
+
+"number_of_frames_per_bout": 3,
 "frame_rate_dlc": 30,
 "frame_rate_avisoft": 500000,
 "pixels_to_cm_ratio": 10.42,

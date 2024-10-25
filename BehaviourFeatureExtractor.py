@@ -60,7 +60,6 @@ class BehaviourFeatureExtractor:
 
         return df_DLC
 
-
     def extract_trial_from_DLC(self, df_DLC, df_summary, 
                                 trial_num):
         # get the trial start and end times
