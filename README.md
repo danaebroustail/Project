@@ -8,11 +8,12 @@ Install requirements listed in requirements.txt.
 
 ### 2. Repository structure ### 
 
+#### Scripts: ####
 - DataLoader.py
 - BehaviourFeatureExtractor.py
 - VocalFeatureExtractor.py
 
-Notebooks:
+#### Notebooks: ####
 - toolbox notebooks:
   - Tests and visualization of processing pipeline.
   - For USV processing, see toolbox_notebook_avisoft.ipynb.
