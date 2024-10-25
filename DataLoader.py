@@ -58,7 +58,7 @@ class DataLoader:
 
 
         items = os.listdir(path_dir)
-        print(f"Found items {items} at directory {path_dir}")
+        #print(f"Found items {items} at directory {path_dir}")
         for item in items:
             # directory
             path_item = os.path.join(path_dir, item)
