@@ -58,7 +58,7 @@
     "trial_end" : "BehavRecdTrialEndSecs",
     "trial_num" : "TrialNum",
     "pup_displacement" : "PupDispDropSecs",
-    "mouse_first_pick_up": "MouseFirstPickUpSecs",
+    "mouse_first_pick_up": "MouseFirstPickUpPupSecs",
     "pup_drop_nest": "DropPupNestSecs"
 },
 
