@@ -23,14 +23,31 @@
               "y": "msTop_y",
               "color": "black",
               "likelihood": "msTop_likelihood"},
-    "endHeadbar": {"x": "endHeadbar_x",
-                   "y": "endHeadbar_y",
+    "endHeadbar": {"x": "endBaseplate_x",
+                   "y": "endBaseplater_y",
                    "color": "orange",
-                   "likelihood": "endHeadbar_likelihood"},
-    "pup": {"x": "pup_x",
-            "y": "pup_y",
+                   "likelihood": "endBaseplate_likelihood"},
+    "hindlegLeft": {"x": "hindlegLeft_x",
+                    "y": "hindlegLeft_y",
+                    "color": "black",
+                    "likelihood": "hindlegLeft_likelihood"},
+    "hindlegRight": {"x": "hindlegRight_x",
+                     "y": "hindlegRight_y",
+                     "color": "black",
+                     "likelihood": "hindlegRight_likelihood"},
+    "pupA": {"x": "pupA_x",
+            "y": "pupA_y",
             "color": "blue",
-            "likelihood": "pup_likelihood"},
+            "likelihood": "pupA_likelihood"},
+    "pupB": {"x": "pupB_x",
+            "y": "pupB_y",
+            "color": "blue",
+            "likelihood": "pupB_likelihood"},
+
+    "pupC": {"x": "pupC_x",
+            "y": "pupC_y",
+            "color": "blue",
+            "likelihood": "pupC_likelihood"},
 
     "head_position": {"x": "head_x",
              "y": "head_y",
@@ -45,11 +62,17 @@
     "time": "time_seconds"
 },
 
-"animal_coordinates": [ "nose", "earRight", "earLeft", "tailBase", "msTop", "endHeadbar"],
-"head_coordinates": ["nose", "earRight", "earLeft", "tailBase", "msTop"],
+"animal_coordinates": [ "nose", "earRight", "earLeft", "tailBase", "msTop", "endHeadbar", "hindlegLeft", "hindlegRight"],   
+"head_coordinates": ["nose", "earRight", "earLeft", "msTop", "endHeadbar"],
+"pup_coordinates": ["pupA", "pupB", "pupC"],
 
 "arena_bounds": {"xmin": 112, "xmax": 512, "ymin": 0, "ymax": 263},
 "nest_bounds": {"xmin": 168, "xmax": 300, "ymin": 30, "ymax": 160},
+
+"pup_position_bounds": { "1":  {"xmin": 168, "xmax": 233, "ymin": 180 , "ymax": 250},
+                         "2": {"xmin": 396, "xmax": 461, "ymin": 180 , "ymax": 250},
+                        "3":  {"xmin": 396, "xmax": 461, "ymin": 28, "ymax": 97}
+                        },      
 
 "interpolation_method": "nearest",
 
@@ -57,9 +80,12 @@
 {
     "trial_end" : "BehavRecdTrialEndSecs",
     "trial_num" : "TrialNum",
+    "trial_success" : "TrialDesignAchieved",
     "pup_displacement" : "PupDispDropSecs",
     "mouse_first_pick_up": "MouseFirstPickUpPupSecs",
-    "pup_drop_nest": "DropPupNestSecs"
+    "pup_drop_nest": "DropPupNestSecs",
+    "pup_displacement_position": "PupDisplPosition"
+
 },
 
 "DLC_behaviour_columns": {
@@ -94,7 +120,7 @@
 "frame_rate_avisoft": 500000,
 "pixels_to_cm_ratio": 10.42,
 "frame_index_to_drop": 150,
-"dlc_file_tags": ["resnet50", "dlc"],
+"dlc_file_tags": ["resnet50", "dlc", "filtered", "oct"],
 "minimum_distance_to_nest": 40,
 "likelihood_threshold": 0.8
 
