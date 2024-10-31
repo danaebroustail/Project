@@ -142,6 +142,11 @@ class BehaviourFeatureExtractor:
             trial_DLC = self.compute_head_angle_to_pup(trial_DLC, add_vector_columns = False,
                                                 head_angle_to_pup_col = self.DLC_behaviour_cols["head_angle_to_pup"])
             
+
+            # denoising pup coordinates
+
+            # computing higher level bhv
+            
             # d) add trial number to the dataframe
             trial_DLC[self.DLC_summary_cols["trial_num"]] == trial_num
 
