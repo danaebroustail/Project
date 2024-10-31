@@ -59,6 +59,18 @@ class BehaviourFeatureExtractor:
         df_DLC[self.DLC_cols[average_col_name]["likelihood"]] = likelihood_avg
 
         return df_DLC
+    
+    def extract_pup_starting_position_bounds(self, df_summary, trial_num):
+        """
+        Extract the position of the pup in the nest for a given trial
+        """
+        # get the start and end time of the trial
+        trial_num_col = self.DLC_summary_cols["trial_num"]
+        pup_starting_position_col = self.DLC_summary_cols["pup_displacement_position"]
+        corner_id = df_summary.loc[df_summary[trial_num_col] == trial_num, pup_starting_position_col].values[0]
+        
+        # return bounds from config file
+        return self.config["pup_position_bounds"][str(corner_id)]
 
     def extract_trial_from_DLC(self, df_DLC, df_summary, 
                                 trial_num):
