@@ -22,7 +22,6 @@ class DataLoader:
         self.file_extensions = file_extensions
         self.df_dict = self.find_paths_main(data_dir)
 
-
     def find_paths_main(self, data_dir):
         """
         Main function to find paths in the given directory.
@@ -39,7 +38,6 @@ class DataLoader:
         self.find_paths_helper(data_dir, d)
         return d
 
-    # write a function that goes in the data_dir and finds all of the paths to the files
     def find_paths_helper(self, path_dir,  d = {}):
         """
         Recursively finds files with specific extensions in a directory and its subdirectories,
@@ -132,7 +130,6 @@ class DataLoader:
 
         return df
         
-
     def convert_to_df(self, path):
         """
         Converts a file at the given path to a pandas DataFrame.
@@ -220,12 +217,12 @@ class DataLoader:
                             "Avisoft": {"df": None}}
 
         for f in files:
-            if 'resnet50' in f.lower():
-                experiment_data['Behavior']['df_dlc'] = self.df_dict[f]['df']
+            if all(filter in f.lower() for filter in self.filters_dlc):
+                experiment_data['Behavior']['df_dlc'] = self.df_dict[f]['df'].copy()
             elif 'summary' in f.lower():
-                experiment_data['Behavior']['df_summary'] = self.df_dict[f]['df']
+                experiment_data['Behavior']['df_summary'] = self.df_dict[f]['df'].copy()
             elif 'avisoft' in f.lower():
-                experiment_data['Avisoft']['df'] = self.df_dict[f]['df']
+                experiment_data['Avisoft']['df'] = self.df_dict[f]['df'].copy()
         
         return experiment_data
 
