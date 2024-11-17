@@ -68,7 +68,7 @@ class BehaviourFeatureExtractor:
         trial_num_col = self.DLC_summary_cols["trial_num"]
         pup_starting_position_col = self.DLC_summary_cols["pup_displacement_position"]
         corner_id = df_summary.loc[df_summary[trial_num_col] == trial_num, pup_starting_position_col].values[0]
-        
+
         # return bounds from config file
         return self.config["pup_position_bounds"][str(corner_id)]
 
@@ -112,7 +112,7 @@ class BehaviourFeatureExtractor:
             ### 3. low level features behaviour features
 
             ## --- a) compute speed
-            print("----> Computing speed")              
+            print("----> Computing speed")           
             trial_DLC = self.compute_speed(trial_DLC,
                                             x_col = self.DLC_cols["mouse_position"]["x"],
                                             y_col = self.DLC_cols["mouse_position"]["y"],
@@ -351,7 +351,9 @@ class BehaviourFeatureExtractor:
         """
         df = df.copy()
 
-        coordinates_cols = [self.DLC_cols["mouse_position"]["likelihood"], self.DLC_cols["head_position"]["likelihood"]]
+        coordinates_cols = [self.DLC_cols["mouse_position"]["likelihood"],
+                            self.DLC_cols["head_position"]["likelihood"], 
+                            self.DLC_cols["pup"]["likelihood"]]
         trial_num_col = [self.DLC_summary_cols["trial_num"]]
         behavioural_cols = list(self.DLC_behaviour_cols.values())
 
@@ -366,6 +368,10 @@ class BehaviourFeatureExtractor:
                 elif col == self.DLC_cols["head_position"]["likelihood"]:
                     df = self.compute_average_coordinates(df, self.config["head_coordinates"], 
                                                     average_col_name = "head_position")
+                    
+                elif col == self.DLC_cols["pup"]["likelihood"]:
+                    df = self.compute_average_coordinates(df, self.config["pup_coordinates"], 
+                                                    average_col_name = "pup")
 
                 elif col == self.DLC_behaviour_cols["in_nest"]:
                     df = self.flag_nest_coordinates(df, in_nest_col = self.DLC_behaviour_cols["in_nest"], 
