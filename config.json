@@ -24,7 +24,7 @@
               "color": "black",
               "likelihood": "msTop_likelihood"},
     "endHeadbar": {"x": "endBaseplate_x",
-                   "y": "endBaseplater_y",
+                   "y": "endBaseplate_y",
                    "color": "orange",
                    "likelihood": "endBaseplate_likelihood"},
     "hindlegLeft": {"x": "hindlegLeft_x",
@@ -48,6 +48,11 @@
             "y": "pupC_y",
             "color": "blue",
             "likelihood": "pupC_likelihood"},
+
+    "pup": {"x": "pup_x",
+                     "y": "pup_y",
+                     "color": "blue",
+                     "likelihood": "pup_likelihood"},
 
     "head_position": {"x": "head_x",
              "y": "head_y",
@@ -120,7 +125,7 @@
 "frame_rate_avisoft": 500000,
 "pixels_to_cm_ratio": 10.42,
 "frame_index_to_drop": 150,
-"dlc_file_tags": ["resnet50", "dlc", "filtered", "oct"],
+"dlc_file_tags": ["resnet50", "dlc", "shuffle", "oct"],
 "minimum_distance_to_nest": 40,
 "likelihood_threshold": 0.8
 
