@@ -278,18 +278,22 @@ class BehaviourFeatureExtractor:
                     if df[body_parts_dict[body_part]["likelihood"]].iloc[i] < threshold:
                         df[body_parts_dict[body_part]["x"]].iloc[i] = np.nan
                         df[body_parts_dict[body_part]["y"]].iloc[i] = np.nan
-
+        
         ## 2 - interpolate missing values
         for body_part in body_parts:
+            # print nan count
+            # print(f"Number of NaN values in x column {body_part}: ", df[body_parts_dict[body_part]["x"]][out_of_nest].isna().sum())
             # interpolate missing values unsing only outside of nest data
-            df[body_parts_dict[body_part]["x"]][out_of_nest] = df[body_parts_dict[body_part]["x"]][out_of_nest].interpolate(method = interpolation_method)
-            df[body_parts_dict[body_part]["y"]][out_of_nest] = df[body_parts_dict[body_part]["y"]][out_of_nest].interpolate(method = interpolation_method)
+            df[body_parts_dict[body_part]["x"]][out_of_nest] = df[body_parts_dict[body_part]["x"]][out_of_nest].interpolate(method = interpolation_method).ffill().bfill()
+            df[body_parts_dict[body_part]["y"]][out_of_nest] = df[body_parts_dict[body_part]["y"]][out_of_nest].interpolate(method = interpolation_method).ffill().bfill()
+
+            # print(f"After interpolation Number of NaN values in x column {body_part}: ", df[body_parts_dict[body_part]["x"]][out_of_nest].isna().sum())
+
 
         ## 3 - recompute average coordinates head and mouse
         df = self.compute_average_coordinates(df, self.config["animal_coordinates"],
                                                 average_col_name =  "mouse_position")
         df = self.compute_average_coordinates(df, self.config["head_coordinates"],  average_col_name = "head_position")
-
 
         return df
 
