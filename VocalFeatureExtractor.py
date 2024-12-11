@@ -91,7 +91,12 @@ class VocalFeatureExtractor:
         return trial_USV
     
     def merge_USV_DLC(self, trial_DLC, trial_USV):
-        # group usv trial by bout window
+        """
+        This function takes in a trial of DLC and USV and merges them based on the bout window index.
+        It computes the average duration, power, frequency and number of calls for each bout window 
+        and assigns them to the corresponding values in the DLC dataframe.
+        """
+
         bout_window_col = self.USV_output_cols["bout_window_index"]
         df_Avi_USV_trial_grouped = trial_USV.groupby(bout_window_col).agg({self.USV_input_cols["duration_col"]: "mean",
                                                                          self.USV_input_cols["power_col"]: "mean",
@@ -115,7 +120,21 @@ class VocalFeatureExtractor:
         return trial_DLC
 
     def process_trial_USV(self, trial_USV, trial_DLC):
+        """
+        Process the USV data for a single trial and add it to the DLC dataframe.
 
+        Parameters:
+        - trial_USV : pandas.DataFrame
+            The USV data for the trial.
+        - trial_DLC : pandas.DataFrame
+            The DLC data for the trial.
+
+        Returns:
+        - trial_DLC : pandas.DataFrame
+            The DLC dataframe with the USV data added.
+        - trial_USV : pandas.DataFrame
+            The USV dataframe with the bout windows added.
+        """
         trial_DLC, trial_USV = self.check_and_insert_columns_USV(trial_DLC, trial_USV)
 
         # 1. assign bout index to trial_DLC
@@ -130,7 +149,25 @@ class VocalFeatureExtractor:
         return trial_DLC, trial_USV
 
     def process_USV(self, df_USV, df_summary, df_DLC):
+        """
+        Process the USV data and add it to the DLC dataframe.
 
+        Parameters:
+        - df_USV : pandas.DataFrame
+            The USV data.
+        - df_summary : pandas.DataFrame
+            The summary dataframe of the DLC data.
+        - df_DLC : pandas.DataFrame
+            The DLC data.
+
+        Returns:
+        - trials : dict
+            A dictionary containing the DLC and USV data for each trial.
+        - df_DLC : pandas.DataFrame
+            The DLC dataframe with the USV data added.
+        - df_USV : pandas.DataFrame
+            The USV dataframe with the bout windows added.
+        """
         trials = {}
 
         # insert and check if required output columns are present
