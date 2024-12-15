@@ -20,7 +20,11 @@ class DataLoader:
         # Data directory and file extensions
         self.data_dir = data_dir
         self.file_extensions = file_extensions
-        self.df_dict = self.find_paths_main(data_dir)
+
+        # Dataframes and videos
+        df_dict, video_dict = self.find_paths_main(data_dir)
+        self.df_dict = df_dict
+        self.video_dict = video_dict
 
     def find_paths_main(self, data_dir):
         """
@@ -34,11 +38,12 @@ class DataLoader:
             Keys are the file paths and values are dictionaries containing the filenames and DataFrames.
         """
 
-        d = {}
-        self.find_paths_helper(data_dir, d)
-        return d
+        d, d_video = {}, {}
+        self.find_paths_helper(data_dir, d, d_video)
+        return d, d_video
 
-    def find_paths_helper(self, path_dir,  d = {}):
+    def find_paths_helper(self, path_dir,  d = {},
+                                           d_video = {}):
         """
         Recursively finds files with specific extensions in a directory and its subdirectories,
         converts them to DataFrames, and stores them in a dictionary.
@@ -63,7 +68,16 @@ class DataLoader:
             
             if os.path.isdir(path_item):
                 #print(f"Found a directory at path {path_dir}")
-                self.find_paths_helper(path_item, d)
+                self.find_paths_helper(path_item, d, d_video)
+
+            # videos
+            elif item.endswith('.mp4'):
+                path_item = os.path.join(path_dir, item)
+                mouse_id, day = item.split("_")[0], item.split("_")[1].split("DLC")[0]
+                if mouse_id not in d_video:
+                    d_video[mouse_id] = {day: path_item}
+                else:
+                    d_video[mouse_id][day] = path_item
 
             # convertible format
             elif item.endswith(tuple(self.file_extensions)):
