@@ -80,7 +80,7 @@ def label_pup_interaction_behaviors(experiment_data, mouse_id, day, trial_num,
 
     return window
 
-def plot_pup_usv_to_pickup_point(experiment_data, mouse_id, day, trial_num, window = None, config_BF=None, BF_instance=None):
+def plot_pup_usv_to_pickup_point(experiment_data, mouse_id, day, trial_num, window=None, config_BF=None, BF_instance=None):
     """Plots the labeled behaviors and USV data leading up to pup pickup"""
     
     #df_summary = experiment_data[ms_id][d]["Behavior"]["df_summary"].copy()

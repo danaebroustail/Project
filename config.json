@@ -50,9 +50,9 @@
             "likelihood": "pupC_likelihood"},
 
     "pup": {"x": "pup_x",
-                     "y": "pup_y",
-                     "color": "blue",
-                     "likelihood": "pup_likelihood"},
+            "y": "pup_y",
+            "color": "blue",
+            "likelihood": "pup_likelihood"},
 
     "head_position": {"x": "head_x",
              "y": "head_y",
