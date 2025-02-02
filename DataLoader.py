@@ -127,15 +127,20 @@ class DataLoader:
             # rename the columns
             df.columns = new_columns
 
-        # ----- 2. Drop rows until frame_index 150
+        # ----- 2. Drop rows until frame_index 150 and reset frame index
         if drop_inital_frames:
-            df = df[df[frame_index_col] > frame_index_to_drop]
+            df = df[df[frame_index_col] > frame_index_to_drop].copy()
+            # Reset frame_index to start from 0
+            df[frame_index_col] = df[frame_index_col] - (frame_index_to_drop + 1)
+            df = df.reset_index(drop=True)
 
-        # ----- 3. Create time_seconds column
+        # ----- 3. Create time_seconds column starting from 0
         if create_time_seconds:
+            # Calculate time in seconds starting from 0
             df[time_seconds_col] = df[frame_index_col] / frame_rate
             # redefine order of columns in dataframe
-            df = df[[frame_index_col, time_seconds_col] + [col for col in df.columns if col not in [frame_index_col, time_seconds_col]]]
+            df = df[[frame_index_col, time_seconds_col] + 
+                    [col for col in df.columns if col not in [frame_index_col, time_seconds_col]]]
 
         # ----- 4. Drop columns 
         if drop_wall_columns:
