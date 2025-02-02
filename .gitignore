@@ -3,3 +3,4 @@ env/
 __pycache__/
 visualizations**/
 plots/
+processed_data/
