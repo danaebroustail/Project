@@ -71,7 +71,7 @@ class DataLoader:
                 self.find_paths_helper(path_item, d, d_video)
 
             # videos
-            elif item.endswith('.mp4'):
+            elif item.endswith('.mp4') and "dlc" in item.lower() and "resnet" in item.lower():
                 path_item = os.path.join(path_dir, item)
                 mouse_id, day = item.split("_")[0], item.split("_")[1].split("DLC")[0]
                 if mouse_id not in d_video:
@@ -100,6 +100,7 @@ class DataLoader:
         
         """
         Processes a DataFrame containing behavioral data from DeepLabCut (DLC).
+        Removes frames before frame_index_to_drop (150), resets the frame_index to 0 from frame (   ) and creates a time_seconds column starting from 0 seconds.
         Parameters:
             path (str): The file path to the DLC data file.
             num_header_rows (int, optional): The number of header rows in the file. Defaults to 3.
@@ -108,10 +109,7 @@ class DataLoader:
             drop_inital_frames (bool, optional): Whether to drop rows until frame_index 150. Defaults to True.
             frame_index_to_drop (int, optional): The frame index until which rows should be dropped. Defaults to 150.
             create_time_seconds (bool, optional): Whether to create a time_seconds column from the frame_index column. Defaults to True.
-            framerate (int, optional): The framerate of the video. Defaults to 30.
-
-        Returns:
-            pd.DataFrame: The processed DataFrame.
+            frame_rate (int, optional): The framerate of the video. Defaults to 30.
         """
         # read first 3 rows of the file containing feature information
         headers = pd.read_csv(path, nrows=num_header_rows)
