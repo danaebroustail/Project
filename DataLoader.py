@@ -240,5 +240,108 @@ class DataLoader:
         
         return experiment_data
 
-    
-    
+    def get_processed_data_for_experiment(self, processed_data_dir, mouse_id, day, trial_num):
+        
+        experiment_data_processed = {'Behavior': {
+                                        "df_summary": None,
+                                        "df_dlc": None} , 
+                                    "trials": {}
+                                    }
+        
+        # load data
+        experiment_data_processed['Behavior']['df_summary'] = pd.read_csv(f"{processed_data_dir}/{mouse_id}/{day}/BehavSummary_{mouse_id}_{day}.csv")
+        experiment_data_processed[mouse_id][day]["Behavior"]["df_dlc"] = pd.read_csv(f"{processed_data_dir}/{mouse_id}/{day}/DLC_original_{mouse_id}_{day}.csv")
+        
+        for trial_num in experiment_data_processed[mouse_id][day]["trials"]:
+            dlc_data = pd.read_csv(f"{processed_data_dir}/{mouse_id}/{day}/trials/trial{trial_num}_DLC_processed_{mouse_id}_{day}.csv")
+            experiment_data_processed[mouse_id][day]["trials"][trial_num] = {"dlc_data": dlc_data}
+
+    def collect_and_process_experiment_data(self, mouse_ids, days, BF_instance, VF_instance, processed_data_dir = None, export = False):
+
+        experiment_data = {}
+
+        for mouse_id in mouse_ids:
+            experiment_data[mouse_id] = {}
+            for day in days:
+                # Load data 
+                data = self.get_data_for_experiment(mouse_id = mouse_id,
+                                                day = day)
+                if data is None:
+                    print("Data not found for mouse", mouse_id, "on day", day)
+                    continue
+
+                experiment_data[mouse_id][day] = data
+
+                df_DLC = experiment_data[mouse_id][day]["Behavior"]["df_dlc"].copy()
+                df_Avi = experiment_data[mouse_id][day]["Avisoft"]["df"].copy()
+                df_summary = experiment_data[mouse_id][day]["Behavior"]["df_summary"].copy()
+
+                # align USV data to DLC data
+                df_DLC_processed, _ = BF_instance.process_DLC(df_DLC.copy(), df_summary)
+                trials, df_DLC, df_USV = VF_instance.process_USV(df_Avi, df_summary, df_DLC_processed)
+                experiment_data[mouse_id][day]["trials"] =  trials
+
+                if export and processed_data_dir is not None:
+                     # export the summary data
+                    df_summary = experiment_data[mouse_id][day]["Behavior"]["df_summary"]
+                    df_summary.to_csv(f"{processed_data_dir}/{mouse_id}/{day}/BehavSummary_{mouse_id}_{day}.csv", index = False)
+
+                    # export the original DLC data
+                    df_DLC = experiment_data[mouse_id][day]["Behavior"]["df_dlc"]
+                    df_DLC.to_csv(f"{processed_data_dir}/{mouse_id}/{day}/DLC_original_{mouse_id}_{day}.csv", index = False)
+
+                    for trial_num in experiment_data[mouse_id][day]["trials"]:
+                        dlc_data = experiment_data[mouse_id][day]["trials"][trial_num]["dlc_data"]
+                        # export the processed DLC data
+                        dlc_data.to_csv(f"{processed_data_dir}/{mouse_id}/{day}/trials/trial{trial_num}_DLC_processed_{mouse_id}_{day}.csv", index = False)
+
+        return experiment_data
+
+
+def export_processed_data(processed_data_dir, experiment_data):
+    os.makedirs(processed_data_dir, exist_ok = True)
+
+    for mouse_id in experiment_data:
+        os.makedirs(f"{processed_data_dir}/{mouse_id}", exist_ok = True)
+
+        for day in experiment_data[mouse_id]:   
+            os.makedirs(f"{processed_data_dir}/{mouse_id}/{day}", exist_ok = True)
+            os.makedirs(f"{processed_data_dir}/{mouse_id}/{day}/trials/", exist_ok = True)
+
+            # export the summary data
+            df_summary = experiment_data[mouse_id][day]["Behavior"]["df_summary"]
+            df_summary.to_csv(f"{processed_data_dir}/{mouse_id}/{day}/BehavSummary_{mouse_id}_{day}.csv", index = False)
+
+            # export the original DLC data
+            df_DLC = experiment_data[mouse_id][day]["Behavior"]["df_dlc"]
+            df_DLC.to_csv(f"{processed_data_dir}/{mouse_id}/{day}/DLC_original_{mouse_id}_{day}.csv", index = False)
+
+            for trial_num in experiment_data[mouse_id][day]["trials"]:
+                dlc_data = experiment_data[mouse_id][day]["trials"][trial_num]["dlc_data"]
+                # export the processed DLC data
+                dlc_data.to_csv(f"{processed_data_dir}/{mouse_id}/{day}/trials/trial{trial_num}_DLC_processed_{mouse_id}_{day}.csv", index = False)
+
+def load_processed_data(processed_data_dir, mouse_ids, days):
+
+    experiment_data_processed = {}  
+
+    for mouse_id in mouse_ids:
+        experiment_data_processed[mouse_id] = {}
+        for day in days:
+            experiment_data_processed[mouse_id][day] = {}
+            experiment_data_processed[mouse_id][day]["Behavior"] = {}
+            experiment_data_processed[mouse_id][day]["trials"] = {}
+        
+            experiment_data_processed[mouse_id][day]["Behavior"]["df_summary"] = pd.read_csv(f"{processed_data_dir}/{mouse_id}/{day}/BehavSummary_{mouse_id}_{day}.csv")
+            experiment_data_processed[mouse_id][day]["Behavior"]["df_dlc"] = pd.read_csv(f"{processed_data_dir}/{mouse_id}/{day}/DLC_original_{mouse_id}_{day}.csv")
+            
+            files = os.listdir(f"{processed_data_dir}/{mouse_id}/{day}/trials/")
+
+            for file in files:
+                if "trial" in file:
+                    trial_num = file.split("_")[0].split("trial")[1]
+                    trial_num = int(trial_num)
+                    dlc_data = pd.read_csv(f"{processed_data_dir}/{mouse_id}/{day}/trials/{file}")
+                    experiment_data_processed[mouse_id][day]["trials"][trial_num] = {"dlc_data": dlc_data}
+
+    return experiment_data_processed    
