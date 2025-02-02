@@ -4,8 +4,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
 import warnings
-import BehaviorFeatureExtractor 
-from BehaviorAnnotation import *
+import os
+from BehaviourFeatureExtractor import *
+from BehaviourAnnotation import *
+import pprint
 
 
 ### Video loading and extraction functions ###
@@ -98,9 +100,8 @@ def save_trial_video(trial_video, output_path, fps = 30):
 
 #### Applying the whole pipeline on full experiment data
 def run_video_creation(video_dict, 
-                        experiment_data,
-                        mouse_id, day, trial_num, config_BF, BF):  
-    
+                      experiment_data,
+                      mouse_id, day, trial_num, config_BF, BF):  
     """Run the full video creation pipeline for a specific trial.
     
     This function processes a trial video by:
@@ -122,37 +123,40 @@ def run_video_creation(video_dict,
     Returns:
         None. Saves the annotated video to disk.
     """
-
     ## 0. Load the video path
     video_path = video_dict[mouse_id][day]
     print("0. Video loaded from:", video_path)
 
     ## 1. Labeling the behaviors
-    pickup_time, start_trial, end_trial = find_pickup_point(experiment_data,
-                                                                    mouse_id, day, trial_num, config_BF)
+    pickup_time, start_time, end_time = find_pickup_point(experiment_data,
+                                                         mouse_id, day, trial_num, 
+                                                         config_BF)
+    
     window = label_pup_interaction_behaviors(experiment_data,
-                                            mouse_id, day, trial_num,
-                                            event_time_point = pickup_time,
-                                            config_BF = config_BF, BF = BF,
-                                            kernel_size=20,
-                                            pre_event_window_size_time=10,
-                                            frame_rate=30)
+                                           mouse_id, day, trial_num,
+                                           event_time_point=pickup_time,
+                                           config_BF=config_BF,
+                                           BF_instance=BF,
+                                           kernel_size=20,
+                                           pre_event_window_size_time=10,
+                                           frame_rate=30)
     print("1. Behaviors labeled")
-    start_time, end_time = window[config_BF["DLC_columns"]["time_seconds"]].iloc[0], window[config_BF["DLC_columns"]["time_seconds"]].iloc[-1]
-    print("Start time:", start_time, "End time:", end_time)   
-    print("Pickup time:", pickup_time, "in mins:", f"{str(int(pickup_time//60))}:{int(pickup_time%60)}")
-    #end_time += 1/30*10 # add 5 frames to the end time to make sure we get the last frame
+    print(f"Start time: {start_time} End time: {end_time}")   
+    print(f"Pickup time: {pickup_time} in mins: {str(int(pickup_time//60))}:{int(pickup_time%60)}")
 
-    # create plot for labeled window
-    _ = plot_pup_usv_to_pickup_point(experiment_data,
-                                 mouse_id, day, trial_num, window, config_BF)
-
+    # Create plot for labeled window
+    behavior_stats = plot_pup_usv_to_pickup_point(experiment_data,
+                                                 mouse_id, day, trial_num, 
+                                                 window=window, 
+                                                 config_BF=config_BF)
+    print(behavior_stats)
 
     ## 2. Extract a specific trial
     trial_video = extract_trial_video_efficient(video_path, experiment_data,
-                                            mouse_id, day, trial_num,
-                                            start_time, end_time, config_BF)
+                                              mouse_id, day, trial_num,
+                                              start_time, end_time, config_BF)
     print("2. Trial extracted")
+
     ## 3. Annotating the video
     # Get the frame index for pickup
     pickup_frame_index = window[config_BF["DLC_columns"]["frame_index"]].iloc[-1]
@@ -166,9 +170,9 @@ def run_video_creation(video_dict,
         pickup_window_size=5
     )
     print("3. Video annotated")
+
     ## 4. Save the video
     original_path = video_dict[mouse_id][day]
-
     movie_name = f"{mouse_id}_{day}_{trial_num}_pickup_shaded.mp4"
     path_to_save = original_path.split("/")[:-1] + [movie_name]
 
@@ -181,5 +185,134 @@ def run_video_creation(video_dict,
     print("4. Video saved to:", path_to_save)
     print("4. Plot saved to:", plot_path)
 
-    save_trial_video(shaded_video, output_path = path_to_save, fps = 30)
+    save_trial_video(shaded_video, output_path=path_to_save, fps=30)
     plt.savefig(plot_path)
+
+def truncate_video(video_path, output_dir=None, frames_to_skip=150):
+    """
+    Removes the first N frames from a video and saves it with 'truncated150_' prefix
+    
+    Args:
+        video_path: path to the original video file
+        output_dir: directory to save the truncated video (defaults to same as input)
+        frames_to_skip: number of frames to remove from start (default 150)
+    
+    Returns:
+        str: path to the truncated video file
+    """
+    # Get video filename and directory
+    video_dir = os.path.dirname(video_path) if output_dir is None else output_dir
+    video_name = os.path.basename(video_path)
+    output_path = os.path.join(video_dir, f"truncated150_{video_name}")
+    
+    # Load video data efficiently using load_video_segment
+    total_frames = int(cv2.VideoCapture(video_path).get(cv2.CAP_PROP_FRAME_COUNT))
+    video_array = load_video_segment(video_path, 
+                                   start_time=frames_to_skip/30,  # Assuming 30 fps
+                                   end_time=total_frames/30)
+    
+    # Save the truncated video
+    save_trial_video(video_array, output_path, fps=30)
+    
+    return output_path
+
+def batch_truncate_videos(video_dict):
+    """
+    Truncates all videos in the video dictionary by removing the first 150 frames
+    
+    Args:
+        video_dict: dictionary of videos organized by mouse_id and day
+        
+    Returns:
+        dict: dictionary with paths to truncated videos
+    """
+    truncated_videos = {}
+    
+    for mouse_id, days in video_dict.items():
+        truncated_videos[mouse_id] = {}
+        for day, video_path in days.items():
+            print(f"Truncating video for {mouse_id} {day}...")
+            try:
+                truncated_path = truncate_video(video_path)
+                truncated_videos[mouse_id][day] = truncated_path
+                print(f"Saved truncated video to: {truncated_path}")
+            except Exception as e:
+                print(f"Error processing video for {mouse_id} {day}: {str(e)}")
+                truncated_videos[mouse_id][day] = None
+    
+    return truncated_videos
+
+if __name__ == "__main__":
+    """
+    Script to truncate videos by removing the first 150 frames.
+    
+    Basic usage:
+        # Use default data directory ('data') and config file ('config.json')
+        python video_creation.py
+        
+        # Specify custom data directory
+        python video_creation.py --data_dir /path/to/data
+        
+        # Specify both custom data directory and config file
+        python video_creation.py --data_dir /path/to/data --config /path/to/config.json
+    
+    The script will:
+    1. Find all videos in the data directory
+    2. Show summary of videos found
+    3. Ask for confirmation
+    4. Create new videos with 'truncated150_' prefix
+    5. Show processing results
+    """
+    import argparse
+    from DataLoader import DataLoader
+    
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description='Truncate videos by removing first 150 frames')
+    parser.add_argument('--data_dir', type=str, default='data',
+                        help='Directory containing the data (default: data)')
+    parser.add_argument('--config', type=str, default='config.json',
+                        help='Path to config file (default: config.json)')
+    
+    args = parser.parse_args()
+    
+    # Initialize DataLoader to get video dictionary
+    print(f"Initializing DataLoader with data directory: {args.data_dir}")
+    DL = DataLoader(args.data_dir, path_to_config_file=args.config)
+
+    # filter video_dict to only include videos with correct tags
+    video_dict = DL.video_dict.copy()
+    
+    print("### *** Video_dict *** ###")
+    pprint.pprint(video_dict)
+
+    # Print summary of videos found
+    total_videos = sum(len(days) for days in video_dict.values())
+    print(f"\nFound {total_videos} videos across {len(video_dict)} mice:")
+    for mouse_id, days in video_dict.items():
+        print(f"- Mouse {mouse_id}: {len(days)} videos")
+    
+    # Confirm with user
+    response = input("\nProceed with truncating all videos? [y/N]: ")
+    if response.lower() != 'y':
+        print("Aborting...")
+        exit()
+    
+    # Process videos
+    print("\nStarting video truncation...")
+    truncated_videos = batch_truncate_videos(video_dict)
+    
+    # Print summary of results
+    print("\nTruncation complete!")
+    successful = 0
+    failed = 0
+    for mouse_id, days in truncated_videos.items():
+        for day, path in days.items():
+            if path is not None:
+                successful += 1
+            else:
+                failed += 1
+                print(f"Failed to process video for mouse {mouse_id} day {day}")
+    
+    print(f"\nSuccessfully truncated {successful} videos")
+    if failed > 0:
+        print(f"Failed to truncate {failed} videos")
