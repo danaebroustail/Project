@@ -266,6 +266,7 @@ class DataLoader:
         for mouse_id in mouse_ids:
             experiment_data[mouse_id] = {}
             for day in days:
+                print("----> Processing data for mouse", mouse_id, "on day", day)
                 # Load data 
                 data = self.get_data_for_experiment(mouse_id = mouse_id,
                                                 day = day)
@@ -282,6 +283,9 @@ class DataLoader:
                 # align USV data to DLC data
                 df_DLC_processed, _ = BF_instance.process_DLC(df_DLC.copy(), df_summary)
                 trials, df_DLC, df_USV = VF_instance.process_USV(df_Avi, df_summary, df_DLC_processed)
+
+                # print("** Exporting ** df_DLC_processed columns:", df_DLC.columns)
+
                 experiment_data[mouse_id][day]["trials"] =  trials
 
                 if export and processed_data_dir is not None:
@@ -294,7 +298,7 @@ class DataLoader:
                     df_DLC.to_csv(f"{processed_data_dir}/{mouse_id}/{day}/DLC_original_{mouse_id}_{day}.csv", index = False)
 
                     for trial_num in experiment_data[mouse_id][day]["trials"]:
-                        dlc_data = experiment_data[mouse_id][day]["trials"][trial_num]["dlc_data"]
+                        dlc_data = experiment_data[mouse_id][day]["trials"][trial_num]["dlc_data"].copy()
                         # export the processed DLC data
                         dlc_data.to_csv(f"{processed_data_dir}/{mouse_id}/{day}/trials/trial{trial_num}_DLC_processed_{mouse_id}_{day}.csv", index = False)
 
@@ -334,17 +338,40 @@ def load_processed_data(processed_data_dir, mouse_ids, days):
             experiment_data_processed[mouse_id][day] = {}
             experiment_data_processed[mouse_id][day]["Behavior"] = {}
             experiment_data_processed[mouse_id][day]["trials"] = {}
-        
-            experiment_data_processed[mouse_id][day]["Behavior"]["df_summary"] = pd.read_csv(f"{processed_data_dir}/{mouse_id}/{day}/BehavSummary_{mouse_id}_{day}.csv")
-            experiment_data_processed[mouse_id][day]["Behavior"]["df_dlc"] = pd.read_csv(f"{processed_data_dir}/{mouse_id}/{day}/DLC_original_{mouse_id}_{day}.csv")
+            # if the summary file does not exist, skip the day
+            if os.path.exists(f"{processed_data_dir}/{mouse_id}/{day}/BehavSummary_{mouse_id}_{day}.csv"):
+                experiment_data_processed[mouse_id][day]["Behavior"]["df_summary"] = pd.read_csv(f"{processed_data_dir}/{mouse_id}/{day}/BehavSummary_{mouse_id}_{day}.csv")
+            else:
+                print(f"Summary file not found for mouse {mouse_id} on day {day}")
+                continue
+
+            if os.path.exists(f"{processed_data_dir}/{mouse_id}/{day}/DLC_original_{mouse_id}_{day}.csv"):
+                experiment_data_processed[mouse_id][day]["Behavior"]["df_dlc"] = pd.read_csv(f"{processed_data_dir}/{mouse_id}/{day}/DLC_original_{mouse_id}_{day}.csv")
             
             files = os.listdir(f"{processed_data_dir}/{mouse_id}/{day}/trials/")
 
             for file in files:
-                if "trial" in file:
+                if "trial" in file and file.endswith(".csv"):
                     trial_num = file.split("_")[0].split("trial")[1]
                     trial_num = int(trial_num)
                     dlc_data = pd.read_csv(f"{processed_data_dir}/{mouse_id}/{day}/trials/{file}")
-                    experiment_data_processed[mouse_id][day]["trials"][trial_num] = {"dlc_data": dlc_data}
+            
+                    if trial_num not in experiment_data_processed[mouse_id][day]["trials"]:
+                        experiment_data_processed[mouse_id][day]["trials"][trial_num] = {"dlc_data": dlc_data}
+                    else:
+                        experiment_data_processed[mouse_id][day]["trials"][trial_num]["dlc_data"] = dlc_data
+                
+                elif "pup_location" in file and file.endswith(".json"):
+                    # open json file
+                    trial_num = file.split("_")[2].split("trial")[1]
+                    trial_num = int(trial_num)
+                    with open(f"{processed_data_dir}/{mouse_id}/{day}/trials/{file}") as f:
+                        pup_locations = json.load(f)
+
+                    if trial_num not in experiment_data_processed[mouse_id][day]["trials"]:
+                        experiment_data_processed[mouse_id][day]["trials"][trial_num] = {"pup_locations": pup_locations}
+                    else:
+                        experiment_data_processed[mouse_id][day]["trials"][trial_num]["pup_locations"] = pup_locations
+
 
     return experiment_data_processed    

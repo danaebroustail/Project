@@ -4,3 +4,4 @@ __pycache__/
 visualizations**/
 plots/
 processed_data/
+annotated_data/

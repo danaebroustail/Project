@@ -89,7 +89,9 @@
     "pup_displacement" : "PupDispDropSecs",
     "mouse_first_pick_up": "MouseFirstPickUpPupSecs",
     "pup_drop_nest": "DropPupNestSecs",
-    "pup_displacement_position": "PupDisplPosition"
+    "pup_displacement_position": "PupDisplPosition",
+    "animal_id": "AnimalID",
+    "day": "ExptID"
 
 },
 
@@ -120,6 +122,22 @@
     }
 },
 
+"Behavioral_states": {
+        "approach": "approach",
+        "crouching": "crouching",
+        "active_interaction": "active_interaction",
+        "in_nest": "in_nest",
+        "walking": "walking",
+        "still": "still",
+        "pickup": "pickup",
+        "drop": "drop",
+        "carrying": "carrying",
+        "retrieval": "retrieval"
+    },
+
+"passive_behaviors": ["walking", "still", "in_nest"],
+"single_event_states": ["drop", "pickup", "retrieval"],
+
 "number_of_frames_per_bout": 3,
 "frame_rate_dlc": 30,
 "frame_rate_avisoft": 500000,
@@ -127,6 +145,13 @@
 "frame_index_to_drop": 150,
 "dlc_file_tags": ["resnet50", "dlc", "shuffle", "oct"],
 "minimum_distance_to_nest": 40,
-"likelihood_threshold": 0.8
+"likelihood_threshold": 0.8,
+"distance_between_clusters_cm": 5,
+"distance_to_pup_box_cm": 10,
+"speed_threshold_cms": 25,
+"time_overlap_tolerance": 0.3,
+"threshold_likelihood_pup": 0.7,
+"threshold_intra_distance_pup_cm": 10,
+"threshold_speed_pup_cm": 5
 
 }
