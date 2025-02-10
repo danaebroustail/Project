@@ -4,9 +4,762 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
 import warnings
-
+import json
 import BehaviourFeatureExtractor as BF
 from BehaviourFeatureExtractor import convert_seconds_to_frame
+import pprint
+import copy
+import os
+
+
+def convert_seconds_to_frame(seconds, frame_rate = 30):
+    return round(seconds*frame_rate)
+
+def compute_distance(coords_1, coords_2):
+            coords_1_x, coords_1_y = coords_1
+            coords_2_x, coords_2_y = coords_2
+
+            return np.sqrt((coords_1_x - coords_2_x)**2 + (coords_1_y - coords_2_y)**2).mean()
+
+def get_pick_up_time(df_summary, trial_num, trial_num_col = "TrialNum", pick_up_time_col = "MouseFirstPickUpPupSecs"):
+        """
+        Get the time when mouse first picked up pup for a given trial.
+        
+        Parameters:
+        -----------
+        df_summary : pandas DataFrame
+            DataFrame containing summary data
+        trial_num : int
+            Trial number
+        BF : object
+            BehaviorFinder object containing configuration parameters
+            
+        Returns:
+        --------
+        float
+            Time in seconds when mouse first picked up pup
+        """
+        pick_up_value = df_summary.loc[df_summary[trial_num_col] == trial_num, pick_up_time_col].values[0]
+        
+        if pd.isna(pick_up_value):
+            return None
+        else:
+            return pick_up_value
+
+def get_success_retrieval_time(df_summary, trial_num, trial_num_col = "TrialNum",
+                                success_col = "TrialDesignAchieved",
+                                end_time_col = "BehavRecdTrialEndSecs"):
+    """
+    Get the time when mouse successfully retrieved pup for a given trial.
+    
+    Parameters: 
+    -----------
+    df_summary : pandas DataFrame
+        DataFrame containing summary data
+    trial_num : int
+        Trial number    
+    BF : object
+        BehaviorFinder object containing configuration parameters
+
+    Returns:
+    --------
+    float
+        Time in seconds when mouse successfully retrieved pup
+    """
+
+    success_value = df_summary.loc[df_summary[trial_num_col] == trial_num, success_col].values[0]
+    
+    if success_value == 1:
+        return df_summary.loc[df_summary[trial_num_col] == trial_num, end_time_col].values[0]
+    else:
+        return None
+
+
+
+class BehaviourAnnotator:
+
+    def __init__(self, path_to_config_file):
+
+        # read .json config file for 
+        with open(path_to_config_file) as f:
+            self.config = json.load(f)
+
+        self.DLC_cols = self.config['DLC_columns']
+        self.DLC_summary_cols = self.config['DLC_summary_columns']
+        self.DLC_behaviour_cols = self.config['DLC_behaviour_columns']
+        self.BF_instance = BF.BehaviourFeatureExtractor("config.json")
+
+        self.time_col = self.DLC_cols['time']
+        self.frame_index_col = self.DLC_cols['frame']
+
+        self.frame_rate = self.config['frame_rate_dlc']
+        self.minimum_distance_to_nest = self.config['minimum_distance_to_nest']
+        self.likelihood_threshold = self.config['likelihood_threshold']
+        self.states = self.config['Behavioral_states']
+        self.single_event_states = self.config['single_event_states']
+
+        self.pickup_col = self.states["pickup"]
+        self.retrieval_col = self.states["retrieval"]
+
+        self.distance_between_clusters_cm = self.config['distance_between_clusters_cm']
+        self.pixels_to_cm_ratio = self.config['pixels_to_cm_ratio']
+
+
+    def create_default_columns(self, trial_df):
+        for state in self.states:
+            trial_df[state] = False
+
+        return trial_df
+
+    def mark_existing_times(self, trial_df, df_summary, trial_num):
+
+        pickup_col = self.pickup_col
+        retrieval_col = self.retrieval_col
+
+        # get pick up time
+        pick_up_time = get_pick_up_time(df_summary, trial_num,
+                                trial_num_col = self.DLC_summary_cols["trial_num"],
+                                pick_up_time_col = self.DLC_summary_cols["mouse_first_pick_up"])
+    
+        print(f"* Pick up time: {pick_up_time}")
+        # get success retrieval time
+        success_retrieval_time = get_success_retrieval_time(df_summary, trial_num,
+                                                        trial_num_col = self.DLC_summary_cols["trial_num"],
+                                                        success_col = self.DLC_summary_cols["trial_success"],
+                                                        end_time_col = self.DLC_summary_cols["trial_end"])
+        print(f"* Success time: {success_retrieval_time}")
+
+        if pick_up_time is not None:
+            pick_up_frame = convert_seconds_to_frame(pick_up_time)
+            print(f"---> Pick up frame: {pick_up_frame}, Start frame: {trial_df['frame_index'].min()}, End frame: {trial_df['frame_index'].max()}")
+            trial_df.loc[trial_df["frame_index"] == pick_up_frame, pickup_col] = True
+
+        if success_retrieval_time is not None:
+            retrieval_frame = convert_seconds_to_frame(success_retrieval_time)
+            print(f"---> Retrieval frame: {retrieval_frame}; Start frame: {trial_df['frame_index'].min()}; End frame: {trial_df['frame_index'].max()}")
+            end_frame = trial_df["frame_index"].max()
+            final_frame = min(end_frame, retrieval_frame)
+            print(f"---> Final frame: {final_frame}")
+            trial_df.loc[(trial_df["frame_index"] == final_frame), retrieval_col] = True
+
+        return trial_df
+
+    def assign_pick_up_and_success_types(self, pup_locations, df_summary, trial_num):
+        
+        pickup_col = self.pickup_col
+        retrieval_col = self.retrieval_col
+
+        pick_up_time = get_pick_up_time(df_summary, trial_num,
+                                        trial_num_col = self.DLC_summary_cols["trial_num"],
+                                        pick_up_time_col = self.DLC_summary_cols["mouse_first_pick_up"] )
+        success_time = get_success_retrieval_time(df_summary, trial_num,
+                                        trial_num_col = self.DLC_summary_cols["trial_num"],
+                                        success_col = self.DLC_summary_cols["trial_success"],
+                                        end_time_col = self.DLC_summary_cols["trial_end"])
+
+        # sort pup_locations by start_time
+        pup_locations_keys = sorted(pup_locations.keys(), key=lambda x: pup_locations[x]["start_time"])
+        last_pup_location = pup_locations_keys[-1]
+        print(f"Pup locations keys: {pup_locations_keys}")
+        print(f"Last location: {last_pup_location}")
+
+        ### pick up positioning ###
+        marked_locations = []
+        if pick_up_time is not None:
+            list_before = [pup_loc for pup_loc in pup_locations_keys if pick_up_time < pup_locations[pup_loc]["start_time"]]
+            list_after = [pup_loc for pup_loc in pup_locations_keys if pick_up_time > pup_locations[pup_loc]["end_time"]]
+            list_included = [pup_loc for pup_loc in pup_locations_keys if pick_up_time >= pup_locations[pup_loc]["start_time"] and pick_up_time <= pup_locations[pup_loc]["end_time"]]
+
+            if list_included:
+                location_included = list_included[0] # only one element in list_included
+                pup_locations[location_included]["pickup"] = "included"
+                marked_locations += [location_included]
+
+            else:
+                if list_before:
+                    first_cluster = list_before[0] # first element of list_before
+                    pup_locations[first_cluster]["pickup"] = "before"
+                    marked_locations += [first_cluster]
+
+                if list_after:
+                    last_cluster = list_after[-1] # last element of list_after
+                    pup_locations[last_cluster]["pickup"] = "after"
+                    marked_locations += [last_cluster]    
+                
+        pup_locations_no_pickup = [pup_loc for pup_loc in pup_locations if pup_loc not in marked_locations]
+
+        ### success retrieval positioning ###
+        pup_locations[last_pup_location]["success"] = "retrieval" if success_time is not None else "failed"
+        
+        pup_locations_no_success = [pup_loc for pup_loc in pup_locations if pup_loc!=last_pup_location]
+        print(f"Pup locations no success: {pup_locations_no_success}")
+
+        ## setting success and pickup to None ##
+        for pup_loc in pup_locations_no_pickup:
+            pup_locations[pup_loc]["pickup"] = "none"
+
+        for pup_loc in pup_locations_no_success:
+            pup_locations[pup_loc]["success"] = "none"
+
+        return pup_locations
+        
+    def compute_distances_clusters(self, pup_locations, trial_df):
+
+        pup_x_col = self.DLC_cols["pup"]["x"]
+        pup_y_col = self.DLC_cols["pup"]["y"]
+        pixel_to_cm = self.pixels_to_cm_ratio
+        time_col = self.DLC_cols["time"]
+
+        distances = []
+        pup_locations_keys = sorted(pup_locations.keys(), key=lambda x: pup_locations[x]["start_time"])
+        
+        if len(pup_locations_keys) > 1:
+            pup_locations_prev, pup_locations_next = pup_locations_keys[:-1], pup_locations_keys[1:]
+
+            for prev_loc, next_loc in zip(pup_locations_prev, pup_locations_next):
+
+                start_time_prev, end_time_prev = pup_locations[prev_loc]["start_time"], pup_locations[prev_loc]["end_time"]
+                start_time_next, end_time_next = pup_locations[next_loc]["start_time"], pup_locations[next_loc]["end_time"]
+                
+                trial_prev = trial_df[(trial_df[time_col] >= start_time_prev) & (trial_df[time_col] <= end_time_prev)]
+                trial_next = trial_df[(trial_df[time_col] >= start_time_next) & (trial_df[time_col] <= end_time_next)]
+
+                (x_prev, y_prev) = (trial_prev[pup_x_col].mean(), trial_prev[pup_y_col].mean())
+                (x_next, y_next) = (trial_next[pup_x_col].mean(), trial_next[pup_y_col].mean())
+                pup_locations[prev_loc]["distance_to_next_cluster_cm"] = compute_distance((x_prev, y_prev), (x_next, y_next)) / pixel_to_cm
+
+            pup_locations[pup_locations_keys[-1]]["distance_to_next_cluster_cm"] = "none"
+
+        else:
+            pup_locations[pup_locations_keys[0]]["distance_to_next_cluster_cm"] = "none"
+
+        return pup_locations
+    
+    def label_pup_interaction_behaviors_trial(self, trial_df, trial_num, start_time, end_time, df_summary, kernel_size=20,
+                                  pre_event_window_size_time=10, frame_rate=30,):
+        """Labels mouse behaviors (approach, crouching, active interaction) in the time window before pup pickup"""
+        
+        time_seconds_col = self.DLC_cols["time"]
+        mouse_x_col = self.DLC_cols["mouse_position"]["x"]
+        mouse_y_col = self.DLC_cols["mouse_position"]["y"]
+        head_x_col = self.DLC_cols["head_position"]["x"]
+        head_y_col = self.DLC_cols["head_position"]["y"]
+        pup_x_col = self.DLC_cols["pup"]["x"]
+        pup_y_col = self.DLC_cols["pup"]["y"]
+        distance_to_pup_col = self.DLC_behaviour_cols["distance_mouse_pup"]
+        distance_to_head_col = self.DLC_behaviour_cols["distance_head_pup"]
+        mouse_speed_col = self.DLC_behaviour_cols["mouse_speed"]
+        approach_col = self.states["approach"]
+        crouching_col = self.states["crouching"]
+        active_interaction_col = self.states["active_interaction"]
+        
+        # Get window of interest
+        window_frames = (trial_df[time_seconds_col] >= start_time) & (trial_df[time_seconds_col] <= end_time)
+        window = trial_df.loc[window_frames].copy()
+
+        # Check that derivatives can be computed (length >2)
+        print(f"Window length: {len(window)}")
+        if len(window) < kernel_size:
+            print(f"Not enough data to compute derivatives for trial {trial_num}, window length: {len(window)}")
+            return window
+        
+        # Calculate distance to pup center
+        pup_corner_bounds = self.BF_instance.extract_pup_starting_position_bounds(df_summary, trial_num)
+        # pup_center_x = pup_corner_bounds["xmin"] + (pup_corner_bounds["xmax"] - pup_corner_bounds["xmin"]) / 2
+        # pup_center_y = pup_corner_bounds["ymin"] + (pup_corner_bounds["ymax"] - pup_corner_bounds["ymin"]) / 2
+
+        # Convert distances to cm and calculate derivatives
+        columns = [mouse_speed_col, distance_to_pup_col, distance_to_head_col]
+        px_cm_ratio = self.pixels_to_cm_ratio
+        for col in columns:
+            window[col+"_cm"] = window[col] / px_cm_ratio
+            window[col+"_cm_deriv"] = np.gradient(window[col+"_cm"])
+
+        # Smooth derivatives
+        kernel = np.ones(kernel_size) / kernel_size
+
+        window[mouse_speed_col+"_cm_convolved"] = np.convolve(window[mouse_speed_col+"_cm"], kernel, mode='same')
+        window[mouse_speed_col+"_cm_deriv_convolved"] = np.gradient(window[mouse_speed_col+"_cm_convolved"])
+        window[distance_to_pup_col + "_cm" + "_deriv" + "_convolved"] = np.convolve(window[distance_to_pup_col + "_cm" + "_deriv"], kernel, mode='same')
+        
+        # Label behaviors
+        mask_approach = (window[distance_to_pup_col + "_cm" + "_deriv" + "_convolved"] < -0.1)
+        mask_crouching = (window[distance_to_pup_col + "_cm"] < 2) & (window["mouse_speed_px/s_cm_convolved"] < 5)
+        mask_active_interaction = (window[distance_to_head_col + "_cm"] < 2) & (window["mouse_speed_px/s_cm_convolved"] < 5)
+            
+        # mask approach, crouching and active interaction
+        window[approach_col] = mask_approach
+        window[crouching_col] = mask_crouching
+        window[active_interaction_col] = mask_active_interaction
+
+        return window
+
+    def annotate_full_trial(self, trial_df, trial_num, df_summary, pup_locations): 
+        """Labels mouse behaviors (approach, crouching, active interaction) by iterating over all pup locations and labeling the behaviors in the time window before each pup location"""
+
+        def propagate_pup_coords_and_recompute(trial_df, mask, pup_cols, pup_related_cols):
+            """Helper function to propagate pup coordinates and recompute related columns over a given mask
+            
+            Parameters:
+            -----------
+            trial_df : pandas DataFrame
+                DataFrame containing trial data
+            mask : boolean array
+                Mask indicating which rows to update
+            pup_cols : list
+                List of pup coordinate columns to forward fill
+            pup_related_cols : list
+                List of columns that need to be recomputed after forward fill
+                
+            Returns:
+            --------
+            pandas DataFrame
+                Updated trial DataFrame
+            """
+            print("NaN counts before forward fill: ", trial_df.loc[mask, pup_related_cols].isna().sum())
+            print("---Overall NaN counts: ", trial_df[pup_related_cols].isna().sum())
+
+            # forward fill the pup_cols
+            trial_df.loc[mask, pup_cols] = trial_df.loc[mask, pup_cols].ffill().values
+
+            pup_x_col, pup_y_col = pup_cols[0], pup_cols[1]
+            head_x_col, head_y_col = self.DLC_cols["head_position"]["x"], self.DLC_cols["head_position"]["y"]
+            mouse_x_col, mouse_y_col = self.DLC_cols["mouse_position"]["x"], self.DLC_cols["mouse_position"]["y"]
+            distance_to_pup_col, distance_to_head_col, head_angle_to_pup_col = pup_related_cols[0], pup_related_cols[1], pup_related_cols[2]
+
+            # recompute the pup_related_cols
+            print("----> Recomputing distance to pup")
+            trial_df.loc[mask, distance_to_pup_col] = self.BF_instance.compute_distance_to_pup(trial_df.loc[mask],
+                                                x_col = mouse_x_col,
+                                                y_col = mouse_y_col,
+                                                pup_x_col = pup_x_col,
+                                                pup_y_col = pup_y_col,
+                                                distance_col = distance_to_pup_col)[distance_to_pup_col].values
+        
+            trial_df.loc[mask, distance_to_head_col] = self.BF_instance.compute_distance_to_pup(trial_df.loc[mask],
+                                                x_col = head_x_col,
+                                                y_col = head_y_col,
+                                                pup_x_col = pup_x_col,
+                                                pup_y_col = pup_y_col,
+                                                distance_col = distance_to_head_col)[distance_to_head_col].values
+
+            print("----> Recomputing head angle to pup")
+            trial_df.loc[mask, head_angle_to_pup_col] = self.BF_instance.compute_head_angle_to_pup(trial_df.loc[mask], add_vector_columns = False,
+                                                head_angle_to_pup_col = head_angle_to_pup_col)[head_angle_to_pup_col].values
+
+            print("NaN counts after forward fill: ", trial_df.loc[mask, pup_related_cols].isna().sum())
+            print("---Overall NaN counts: ", trial_df[pup_related_cols].isna().sum())
+            
+            return trial_df
+        
+        def get_pickup_frame(trial_df, pickup_time, frame_index_col = "frame_index"):
+            if pickup_time is not None:
+                pickup_mask = (trial_df[pickup_col] == True)
+                pick_up_frame = trial_df[pickup_mask][frame_index_col].values[0]
+                return pick_up_frame
+            else:
+                return None
+
+        def get_start_end_frames_cluster(trial_df, pup_locations, pup_loc_id):
+
+            start_time_window = pup_locations[pup_loc_id]["start_time"]
+            end_time_window = pup_locations[pup_loc_id]["end_time"]
+
+            mask_pup_location = (trial_df[time_seconds_col] >= start_time_window) & (trial_df[time_seconds_col] <= end_time_window)
+            window = trial_df.loc[mask_pup_location].copy()
+
+            end_time_frame = window[frame_index_col].max()
+            start_time_frame = window[frame_index_col].min()
+
+            return start_time_frame, end_time_frame
+
+        time_seconds_col = self.DLC_cols["time"]
+        frame_index_col = self.DLC_cols["frame"]
+
+        pup_x_col = self.DLC_cols["pup"]["x"]
+        pup_y_col = self.DLC_cols["pup"]["y"]
+        distance_to_pup_col = self.DLC_behaviour_cols["distance_mouse_pup"]
+        distance_to_head_col = self.DLC_behaviour_cols["distance_head_pup"]
+        head_angle_to_pup_col = self.DLC_behaviour_cols["head_angle_to_pup"]
+
+        pickup_col = self.states["pickup"]
+        drop_col = self.states["drop"]
+        retrieval_col = self.states["retrieval"]
+        carrying_col = self.states["carrying"]
+        active_interaction_col = self.states["active_interaction"]
+        approach_col = self.states["approach"]
+        crouching_col = self.states["crouching"]
+
+        frame_rate = self.frame_rate
+        
+        pickup_time = get_pick_up_time(df_summary, trial_num,
+                                        trial_num_col = self.DLC_summary_cols["trial_num"],
+                                        pick_up_time_col = self.DLC_summary_cols["mouse_first_pick_up"])
+        pick_up_frame = get_pickup_frame(trial_df, pickup_time,
+                                        frame_index_col = self.DLC_cols["frame"])
+                                        
+        print("* Pick up frame: ", pick_up_frame, "* Pickup time: ", pickup_time)
+
+        pup_cols = [pup_x_col, pup_y_col]
+        pup_related_cols = [distance_to_pup_col, distance_to_head_col, head_angle_to_pup_col]
+        print(pup_related_cols)
+
+        pup_locations_keys = sorted(pup_locations.keys(), key=lambda x: pup_locations[x]["start_time"])
+        last_pup_location = pup_locations_keys[-1]
+
+        #### annotation of carrying, pickup and drop ####
+        for i, pup_loc in enumerate(pup_locations_keys):
+
+            print(f"====== {pup_loc}: Annotation of carrying, pickup and drop  ======")
+
+            print("Before annotation and analysis:")
+            print(trial_df[[approach_col, crouching_col, active_interaction_col]].value_counts())
+
+            start_time_window, end_time_window = pup_locations[pup_loc]["start_time"], pup_locations[pup_loc]["end_time"]
+
+            start_time_frame, end_time_frame = get_start_end_frames_cluster(trial_df, pup_locations, pup_loc)
+
+            pickup_type = pup_locations[pup_loc]["pickup"]
+            success_type = pup_locations[pup_loc]["success"]
+
+            print(f"====== {pup_loc}: pickup_type: '{pickup_type}' success_type: '{success_type}' ")
+
+            if pickup_type != "none": # if there is a pickup surrounding or within the cluster
+
+                if pickup_type == "after":
+                    end_time_window = pickup_time
+                    mask_start_to_pickup = (trial_df[frame_index_col] < pick_up_frame) & (trial_df[time_seconds_col] >= start_time_window)
+
+                    trial_df = propagate_pup_coords_and_recompute(trial_df, mask_start_to_pickup, pup_cols, pup_related_cols)
+
+                    pup_locations[pup_loc]["end_time"] = pickup_time
+                    print(f"Pup location end time updated to: {pickup_time}")
+                    print("Propagating pup coordinates to the pickup time")
+
+                elif pickup_type == "before":
+                    mask_pickup_to_start = (trial_df[frame_index_col] > pick_up_frame) & (trial_df[time_seconds_col] < start_time_window)
+                    frame_start_drop = convert_seconds_to_frame(start_time_window, frame_rate)
+
+                    trial_df.loc[mask_pickup_to_start, carrying_col] = True
+                    trial_df.loc[trial_df[frame_index_col] == frame_start_drop, drop_col] = True
+
+                    print(f"Carry from {pick_up_frame} to drop at {frame_start_drop}")
+
+                elif pickup_type == "included": # drop instantly after pickup
+                    frame_drop = pick_up_frame + 1
+                    trial_df.loc[trial_df[frame_index_col] == frame_drop, drop_col] = True # set drop to true at the next frame
+                    print(f"Pick up at {pick_up_frame}, instantly drop at {frame_drop}")
+
+                # additional processing for last pup location
+                if pup_loc == last_pup_location:
+                    print(f"---> Processing last pup location: {pup_loc}")
+                    if pickup_type == "after":
+                        mask_pickup_to_end = (trial_df[frame_index_col] > pick_up_frame)
+                        trial_df.loc[mask_pickup_to_end, carrying_col] = True
+                        end_col = retrieval_col if success_type == "retrieval" else drop_col
+                        trial_df.iloc[-1][end_col] = True
+
+                        print(f"Carry from pick up point {pick_up_frame} to end of trial, retrieval at {trial_df[frame_index_col].max()}")
+
+                    elif pickup_type == "before":
+
+                        if success_type == "retrieval":
+                            mask_pickup_to_end = (trial_df[frame_index_col] > end_time_frame)
+                            mask_exact_pickup = (trial_df[frame_index_col] == end_time_frame)
+                            trial_df.loc[mask_exact_pickup, pickup_col] = True
+                            trial_df.loc[mask_pickup_to_end, carrying_col] = True
+                            trial_df.iloc[-1][retrieval_col] = True
+
+                            print(f"Pickup at {pick_up_frame}, Carry -> Retrieval at {trial_df[frame_index_col].max()}")
+                        else:
+                            # propagate pup coordinates to the end of the trial and adjust end time of cluster
+                            mask_end_cluster_to_final = (trial_df[frame_index_col] > end_time_frame)
+                            # trial_df.loc[mask_end_cluster_to_final, pup_related_cols] = trial_df.iloc[-1][pup_related_cols].values
+                            trial_df = propagate_pup_coords_and_recompute(trial_df, mask_end_cluster_to_final, pup_cols, pup_related_cols)
+                            
+                            pup_locations[pup_loc]["end_time"] = trial_df[time_seconds_col].max()
+                            print(f"Propagating pup coordinates to the end of the trial at {end_time_frame}")
+                            print("Pup location end time updated to: ", trial_df[time_seconds_col].max())
+
+                    elif pickup_type == "included":
+                        if success_type == "retrieval":
+                            mask_pickup_to_end = (trial_df[frame_index_col] > end_time_frame)
+                            mask_exact_pickup = (trial_df[frame_index_col] == end_time_frame)
+                            trial_df.loc[mask_exact_pickup, pickup_col] = True
+                            trial_df.loc[mask_pickup_to_end, carrying_col] = True
+                            trial_df.iloc[-1][retrieval_col] = True
+
+                            print(f"Pickup at {end_time_frame}, Carry -> Retrieval at {trial_df[frame_index_col].max()}")
+                        else:
+                            mask_end_cluster_to_final = (trial_df[frame_index_col] >= end_time_frame)
+                            # trial_df.loc[mask_end_cluster_to_final, pup_related_cols] = trial_df.iloc[-1][pup_related_cols].values
+                            trial_df = propagate_pup_coords_and_recompute(trial_df, mask_end_cluster_to_final, pup_cols, pup_related_cols)
+                
+                            pup_locations[pup_loc]["end_time"] = trial_df[time_seconds_col].max()
+
+                            print(f"Propagating pup coordinates to the end of the trial at {end_time_frame}")
+                            print("Pup location end time updated to: ", trial_df[time_seconds_col].max())
+
+            elif pickup_type == "none":
+
+                # get distance to next cluster
+                distance_to_next_cluster = pup_locations[pup_loc]["distance_to_next_cluster_cm"]
+                max_distance_between_clusters_cm = self.distance_between_clusters_cm
+                if distance_to_next_cluster!="none" and distance_to_next_cluster > max_distance_between_clusters_cm:
+                    print("Distance to next cluster is too big: ", distance_to_next_cluster)
+
+                    next_cluster_id = pup_locations_keys[i+1]
+
+                    start_frame_next_cluster, end_frame_next_cluster = get_start_end_frames_cluster(trial_df, pup_locations, next_cluster_id)
+
+                    # insert a pickup at the end of the cluster, then carry to the next cluster, drop at the start of the next cluster
+                    mask_exact_pickup = (trial_df[frame_index_col] == end_time_frame)
+                    mask_carry_to_next_cluster = (trial_df[frame_index_col] > end_time_frame) & (trial_df[frame_index_col] < start_frame_next_cluster)
+                    mask_drop_at_next_cluster = (trial_df[frame_index_col] == start_frame_next_cluster)
+                    
+                    trial_df.loc[mask_exact_pickup, pickup_col] = True
+                    trial_df.loc[mask_carry_to_next_cluster, carrying_col] = True
+                    trial_df.loc[mask_drop_at_next_cluster, drop_col] = True
+
+
+                elif pup_loc == last_pup_location:
+                    if success_type == "retrieval":
+                        mask_exact_pickup = (trial_df[frame_index_col] == end_time_frame)
+                        mask_carry_to_end = (trial_df[frame_index_col] > end_time_frame)
+                        trial_df.loc[mask_exact_pickup, pickup_col] = True
+                        trial_df.loc[mask_carry_to_end, carrying_col] = True
+                        trial_df.iloc[-1][retrieval_col] = True
+
+                    elif success_type == "failed":
+                        # propagate pup coordinates to the end of the trial and adjust end time of cluster
+                        mask_end_cluster_to_final = (trial_df[frame_index_col] >= end_time_frame)
+                        # trial_df.loc[mask_end_cluster_to_final, pup_related_cols] = trial_df.iloc[-1][pup_related_cols].values
+                        trial_df = propagate_pup_coords_and_recompute(trial_df, mask_end_cluster_to_final, pup_cols, pup_related_cols)
+                        
+                        pup_locations[pup_loc]["end_time"] = trial_df[time_seconds_col].max()
+
+                        print(f"Propagating pup coordinates to the end of the trial at {end_time_frame}")
+                        print("Pup location end time updated to: ", trial_df[time_seconds_col].max())
+            
+            print("\n===== After annotations edits:")
+            print(trial_df[[drop_col, pickup_col, carrying_col, retrieval_col]].value_counts())
+
+            ##### pup-directed behavioral analysis on the appropriate time windows #####
+            print("\n===== General pup-directed analysis =====")
+            start_time_window = pup_locations[pup_loc]["start_time"]
+            end_time_window = pup_locations[pup_loc]["end_time"]
+            mask_window = (trial_df[time_seconds_col] >= start_time_window) & (trial_df[time_seconds_col] <= end_time_window)
+            print(f" -> Window: {start_time_window} to {end_time_window}")
+
+            pup_cluster_df = trial_df.loc[mask_window].copy()
+            annotated_cluster_df = self.label_pup_interaction_behaviors_trial(pup_cluster_df, trial_num, start_time_window, end_time_window, df_summary)
+            trial_df.loc[mask_window, trial_df.columns] = annotated_cluster_df[trial_df.columns].values
+            
+            print("\n=====> After ALL edits:")
+            print(trial_df[[approach_col, crouching_col, active_interaction_col]].value_counts())
+            print(trial_df[[drop_col, pickup_col, carrying_col, retrieval_col]].value_counts())
+
+        print(" **** Final pup locations: **** ")
+        pprint.pprint(pup_locations)
+
+        return trial_df, pup_locations
+
+    
+    
+    # def label_passive_behaviors_trial()
+    
+    
+    # def resolve_simultaneous_labels(self, trial_df):
+
+    def plot_behavioral_annotations(self, trial_df_annotated, df_summary, pup_locations, 
+                                    mouse_id, day, trial_num, start_time = None, end_time = None, add_USV_plot = False,
+                                    export_plot = False ):
+        """Plots the labeled behaviors and USV data leading up to pup pickup"""
+
+        trial_pickup_time = get_pick_up_time(df_summary, trial_num,
+                                trial_num_col = self.DLC_summary_cols["trial_num"],
+                                pick_up_time_col = self.DLC_summary_cols["mouse_first_pick_up"])
+        time_seconds_col = self.DLC_cols["time"]
+
+        if start_time is None:
+            trial_start_time = trial_df_annotated[time_seconds_col].iloc[0]
+        else:
+            trial_start_time = start_time
+
+        if end_time is None:
+            trial_end_time = trial_df_annotated[time_seconds_col].iloc[-1]
+        else:
+            trial_end_time = end_time
+
+        trial_df_annotated = trial_df_annotated[(trial_df_annotated[time_seconds_col] >= trial_start_time) & (trial_df_annotated[time_seconds_col] <= trial_end_time)]
+
+        pup_x_col = self.DLC_cols["pup"]["x"]
+        pup_y_col = self.DLC_cols["pup"]["y"]
+        distance_to_pup_col = self.DLC_behaviour_cols["distance_mouse_pup"]
+        pixels_to_cm_ratio = self.pixels_to_cm_ratio
+        
+        pickup_col = self.states["pickup"]
+        drop_col = self.states["drop"]
+        retrieval_col = self.states["retrieval"]
+
+        states = [self.states["approach"], self.states["crouching"], self.states["active_interaction"],
+                    self.states["pickup"], self.states["drop"], self.states["carrying"], self.states["retrieval"]]
+
+        single_event_states = self.config["single_event_states"]
+        
+        trial_pickup_time_minutes = f"{str(int(trial_pickup_time//60))}:{int(trial_pickup_time%60)}" if trial_pickup_time is not None else "None"
+        trial_start_time_minutes = f"{str(int(trial_start_time//60))}:{int(trial_start_time%60)}"  
+        trial_end_time_minutes = f"{str(int(trial_end_time//60))}:{int(trial_end_time%60)}"
+        
+        # Create plot of distance to pup
+        fig, ax = plt.subplots(1, 1, figsize=(12, 6))
+        trial_df_annotated[distance_to_pup_col+"_cm"] = trial_df_annotated[distance_to_pup_col] / pixels_to_cm_ratio
+        trial_df_annotated.plot(x="time_seconds", y=[distance_to_pup_col+"_cm"], color="black", linewidth=1, ax=ax, zorder = 0)
+
+        # Add USV plot
+        if add_USV_plot:
+            ax2 = ax.twinx()
+            trial_df_annotated.plot(x="time_seconds", y=["average_frequency"],
+                    ax=ax2, kind="scatter", color="purple", zorder=0, s=10)
+            ax2.set_ylabel("Average frequency of USVs (kHz)", color="purple")
+
+        # for each state, pick a color
+        dict_colors = {self.states["approach"]: "green",
+                    self.states["crouching"]: "red",
+                    self.states["active_interaction"]: "dodgerblue",
+                    self.states["pickup"]: "magenta",
+                    self.states["drop"]: "crimson",
+                    self.states["carrying"]: "darkorange",
+                    self.states["retrieval"]: "lime"}
+        pup_locations_keys = sorted(pup_locations.keys(), key=lambda x: pup_locations[x]["start_time"])
+        gradient_blues = ["deepskyblue",  "royalblue",  "darkblue", "blue", "blueviolet"]
+        colors_pup_locations = {pup_loc: gradient_blues[i] for i, pup_loc in enumerate(pup_locations_keys)}
+        
+        
+        for pup_loc in pup_locations_keys:
+            print("pup_loc", pup_loc)
+            mask_pup_available = (trial_df_annotated[time_seconds_col] >= pup_locations[pup_loc]["start_time"]) & (trial_df_annotated[time_seconds_col] <= pup_locations[pup_loc]["end_time"])
+            print("mask_pup_available", mask_pup_available.sum())
+            ax.fill_between(trial_df_annotated[time_seconds_col], 0.95, 0.97, 
+                    where=mask_pup_available,
+                    transform=ax.get_xaxis_transform(),
+                    facecolor=colors_pup_locations[pup_loc], alpha=1., zorder = 2)
+        
+
+        # Add behavior shading
+        for behavior, color in dict_colors.items():
+            # Get time points where behavior is True
+            behavior_times = trial_df_annotated.loc[trial_df_annotated[behavior], time_seconds_col]
+            times = trial_df_annotated[time_seconds_col]
+            # Create spans for each time point
+            if behavior_times.size > 0:
+                if behavior in single_event_states:
+                    for time in behavior_times:
+                        ax.axvline(x=time, 
+                                ymin=0, ymax=0.875,  # Same vertical span as before
+                                color=color,
+                                linewidth=2,  # Makes the line thicker
+                                alpha=1., zorder = 2)
+                else:
+                    ax.fill_between(times, 0, 0.875, 
+                            where=trial_df_annotated[behavior],
+                            transform=ax.get_xaxis_transform(),
+                            facecolor=color, alpha=0.4, zorder = 1)
+
+        # Add legend
+        legend_elements_states_span = [mpatches.Patch(color=color, label=state, alpha=0.5) for state, color in dict_colors.items() if state not in single_event_states]
+        legend_states_single_event = [mpatches.Patch(color=color, label=state, alpha=1.) for state, color in dict_colors.items() if state in single_event_states]
+        legend_elements_pup_location = [mpatches.Patch(color=color, label=pup_loc, alpha=1) for pup_loc, color in colors_pup_locations.items()]
+
+
+        legend_elements = legend_elements_states_span + legend_states_single_event
+        legend_elements.append(mlines.Line2D([], [], color='black', label='Distance to pup'))
+
+        
+        # Create first legend in lower right with high zorder
+        first_legend = ax.legend(handles=legend_elements, loc="lower right")
+        # Add the first legend manually to the plot
+        ax.add_artist(first_legend)
+        # Create second legend in upper right with high zorder
+        second_legend = ax.legend(handles=legend_elements_pup_location, loc="upper right")
+        ax.add_artist(second_legend)
+        # Create third legend for distance curve with high zorder
+        distance_legend = ax.legend(handles=[mlines.Line2D([], [], color='black', label='Distance to pup')], loc='center right')
+        ax.add_artist(distance_legend)
+
+        ax.set_title(f"{mouse_id} - {day} - Trial {trial_num}: Distance to pup and USV to pick up point at {trial_pickup_time_minutes}, trial start was at {trial_start_time_minutes}")
+        
+        if export_plot:
+            os.makedirs("plots/full_annotation_plots", exist_ok = True)
+            os.makedirs(f"plots/full_annotation_plots/{mouse_id}/{day}", exist_ok = True)
+            path = f"plots/full_annotation_plots/{mouse_id}/{day}/{mouse_id}_{day}_trial_{trial_num}.png"
+            plt.savefig(path)
+            plt.show()
+        else:
+            plt.show()
+
+    def export_trial(self, trial_df_annotated, pup_locations_annotated, df_summary,
+                            mouse_id, day, trial_num, processed_data_dir = "annotated_data"):
+        
+        os.makedirs(processed_data_dir, exist_ok = True)
+        os.makedirs(f"{processed_data_dir}/{mouse_id}/{day}/trials/", exist_ok = True)
+
+        df_summary.to_csv(f"{processed_data_dir}/{mouse_id}/{day}/BehavSummary_{mouse_id}_{day}.csv", index = False)
+
+        path = f"{processed_data_dir}/{mouse_id}/{day}/trials/trial{trial_num}_DLC_annotated_{mouse_id}_{day}.csv"
+        trial_df_annotated.to_csv(path, index=False)    
+
+        path = f"{processed_data_dir}/{mouse_id}/{day}/trials/{mouse_id}_{day}_trial{trial_num}_pup_location_dict.json"
+        with open(path, 'w') as f:
+            json.dump(pup_locations_annotated, f, indent=4)
+        
+    def run_pup_directed_behavior_annotation(self, mouse_id, day, trial_num,
+                                                trial_df, df_summary, pup_locations,
+                                                processed_data_dir = "annotated_data", export = False):
+
+        print(f" ==== Example: {mouse_id} - {day} - {trial_num} ==== ")
+
+        # 1. create default columns
+        print("1.Creating default columns")
+        trial_df = self.create_default_columns(trial_df)
+
+        # 2. mark existing times
+        print("2.Marking existing times")
+        trial_df = self.mark_existing_times(trial_df, df_summary, trial_num)
+
+        # 3. assign pick up and success types
+        print("3.Assigning pick up and success types")
+        pup_locations_assigned = self.assign_pick_up_and_success_types(pup_locations, df_summary, trial_num)
+
+        # 4. compute distances
+        print("4.Computing distances")
+        pup_locations_distances = self.compute_distances_clusters(pup_locations_assigned, trial_df)
+
+        # 5. annotate trial
+        print("5.Annotating trial")
+        trial_df_annotated, pup_locations_annotated = self.annotate_full_trial(trial_df, trial_num, df_summary, pup_locations_distances)
+
+        # 6. export trial
+        print("6.Exporting trial")
+        if export:
+            self.export_trial(trial_df_annotated, pup_locations_annotated, df_summary,
+                            mouse_id, day, trial_num, processed_data_dir)
+
+        # 7. plot behavioral annotations
+        print("7.Plotting behavioral annotations")
+        self.plot_behavioral_annotations(trial_df_annotated, df_summary, pup_locations_annotated,
+                            mouse_id, day, trial_num,
+                            start_time = None, end_time = None, add_USV_plot = False, export_plot = export)
+
+        return trial_df_annotated, pup_locations_annotated
+        
+    
+
+
+
+
+####   Previous analysis functions restricted to only successful trials ####
+
 
 def find_pickup_point(experiment_data, mouse_id, day, trial_num, config_BF):
 
