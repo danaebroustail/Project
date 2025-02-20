@@ -249,6 +249,7 @@ class BehaviourAnnotator:
         pup_y_col = self.DLC_cols["pup"]["y"]
         distance_to_pup_col = self.DLC_behaviour_cols["distance_mouse_pup"]
         distance_to_head_col = self.DLC_behaviour_cols["distance_head_pup"]
+        head_angle_to_pup_col = self.DLC_behaviour_cols["head_angle_to_pup"]
         mouse_speed_col = self.DLC_behaviour_cols["mouse_speed"]
         approach_col = self.states["approach"]
         crouching_col = self.states["crouching"]
@@ -279,12 +280,14 @@ class BehaviourAnnotator:
         # Smooth derivatives
         kernel = np.ones(kernel_size) / kernel_size
 
+        window[head_angle_to_pup_col + "_convolved"] = np.convolve(window[head_angle_to_pup_col], kernel, mode='same')
         window[mouse_speed_col+"_cm_convolved"] = np.convolve(window[mouse_speed_col+"_cm"], kernel, mode='same')
         window[mouse_speed_col+"_cm_deriv_convolved"] = np.gradient(window[mouse_speed_col+"_cm_convolved"])
         window[distance_to_pup_col + "_cm" + "_deriv" + "_convolved"] = np.convolve(window[distance_to_pup_col + "_cm" + "_deriv"], kernel, mode='same')
+        window[distance_to_head_col + "_cm" + "_deriv" + "_convolved"] = np.convolve(window[distance_to_head_col + "_cm" + "_deriv"], kernel, mode='same')
         
         # Label behaviors
-        mask_approach = (window[distance_to_pup_col + "_cm" + "_deriv" + "_convolved"] < -0.1)
+        mask_approach = (window[distance_to_head_col + "_cm" + "_deriv" + "_convolved"] < self.threshold_approach_speed_cms) & (window[head_angle_to_pup_col + "_convolved"] <=  self.threshold_approach_angle_degrees)
         mask_crouching = (window[distance_to_pup_col + "_cm"] < 2) & (window["mouse_speed_px/s_cm_convolved"] < 5)
         mask_active_interaction = (window[distance_to_head_col + "_cm"] < 2) & (window["mouse_speed_px/s_cm_convolved"] < 5)
             
@@ -298,6 +301,25 @@ class BehaviourAnnotator:
     def annotate_full_trial(self, trial_df, trial_num, df_summary, pup_locations): 
         """Labels mouse behaviors (approach, crouching, active interaction) by iterating over all pup locations and labeling the behaviors in the time window before each pup location"""
 
+        def check_pickup_validity(trial_df, pup_locations, pup_loc_id):
+            """Check if the pickup is valid by looking at the distance to the pup and the head angle to the pup"""
+            
+            pup_loc = pup_locations[pup_loc_id]
+            start_time = pup_loc["start_time"]
+            end_time = pup_loc["end_time"]
+            window = trial_df[(trial_df[time_seconds_col] >= start_time) & (trial_df[time_seconds_col] <= end_time)]
+            
+            num_frames = min(20, len(window))
+
+            frames_before_pickup_distance_mean_cm = window[distance_to_pup_col].iloc[-num_frames:].mean() / self.pixels_to_cm_ratio
+
+            threshold_distance_to_pup_cm = 5
+
+            if (frames_before_pickup_distance_mean_cm > threshold_distance_to_pup_cm):
+                return False
+            else:
+                return True
+            
         def propagate_pup_coords_and_recompute(trial_df, mask, pup_cols, pup_related_cols):
             """Helper function to propagate pup coordinates and recompute related columns over a given mask
             
@@ -456,22 +478,30 @@ class BehaviourAnnotator:
                     print(f"---> Processing last pup location: {pup_loc}")
                     if pickup_type == "after":
                         mask_pickup_to_end = (trial_df[frame_index_col] > pick_up_frame)
+                        mask_end_of_trial = (trial_df[frame_index_col] == trial_df[frame_index_col].max())
                         trial_df.loc[mask_pickup_to_end, carrying_col] = True
-                        end_col = retrieval_col if success_type == "retrieval" else drop_col
-                        trial_df.iloc[-1][end_col] = True
+                        end_col = (retrieval_col if success_type == "retrieval" else drop_col)
+                        print(f"Setting {end_col} to True at the end of the trial")
+                        trial_df.loc[mask_end_of_trial, end_col] = True
 
-                        print(f"Carry from pick up point {pick_up_frame} to end of trial, retrieval at {trial_df[frame_index_col].max()}")
+                        print(f"Carry from pick up point {pick_up_frame} to end of trial, {end_col} at {trial_df[frame_index_col].max()}")
 
                     elif pickup_type == "before":
 
                         if success_type == "retrieval":
                             mask_pickup_to_end = (trial_df[frame_index_col] > end_time_frame)
                             mask_exact_pickup = (trial_df[frame_index_col] == end_time_frame)
-                            trial_df.loc[mask_exact_pickup, pickup_col] = True
-                            trial_df.loc[mask_pickup_to_end, carrying_col] = True
-                            trial_df.iloc[-1][retrieval_col] = True
 
-                            print(f"Pickup at {pick_up_frame}, Carry -> Retrieval at {trial_df[frame_index_col].max()}")
+                            ##### create a pickup at the end of the cluster
+                            if check_pickup_validity(trial_df, pup_locations, pup_loc):
+                                trial_df.loc[mask_exact_pickup, pickup_col] = True
+                                trial_df.loc[mask_pickup_to_end, carrying_col] = True
+                                trial_df.iloc[-1][retrieval_col] = True
+
+                                print(f"Pickup at {pick_up_frame}, Carry -> Retrieval at {trial_df[frame_index_col].max()}")
+                            else:
+                                #print(f"Pickup at {pick_up_frame} is invalid, skipping")
+                                raise ValueError(f"Pickup at {pick_up_frame} for {mouse_id} - {day} - {trial_num} is invalid, Mouse does not move closer to the pup than 5 cm, skipping")
                         else:
                             # propagate pup coordinates to the end of the trial and adjust end time of cluster
                             mask_end_cluster_to_final = (trial_df[frame_index_col] > end_time_frame)
@@ -486,11 +516,17 @@ class BehaviourAnnotator:
                         if success_type == "retrieval":
                             mask_pickup_to_end = (trial_df[frame_index_col] > end_time_frame)
                             mask_exact_pickup = (trial_df[frame_index_col] == end_time_frame)
-                            trial_df.loc[mask_exact_pickup, pickup_col] = True
-                            trial_df.loc[mask_pickup_to_end, carrying_col] = True
-                            trial_df.iloc[-1][retrieval_col] = True
 
-                            print(f"Pickup at {end_time_frame}, Carry -> Retrieval at {trial_df[frame_index_col].max()}")
+                            ### create a pickup at the end of the cluster
+                            if check_pickup_validity(trial_df, pup_locations, pup_loc):
+                                trial_df.loc[mask_exact_pickup, pickup_col] = True
+                                trial_df.loc[mask_pickup_to_end, carrying_col] = True
+                                trial_df.iloc[-1][retrieval_col] = True
+
+                                print(f"Pickup at {end_time_frame}, Carry -> Retrieval at {trial_df[frame_index_col].max()}")
+                            else:
+                                #print(f"Pickup at {end_time_frame} is invalid, skipping")
+                                raise ValueError(f"Pickup at {end_time_frame} for {mouse_id} - {day} - {trial_num} is invalid, Mouse does not move closer to the pup than 5 cm, skipping")
                         else:
                             mask_end_cluster_to_final = (trial_df[frame_index_col] >= end_time_frame)
                             # trial_df.loc[mask_end_cluster_to_final, pup_related_cols] = trial_df.iloc[-1][pup_related_cols].values
@@ -518,18 +554,28 @@ class BehaviourAnnotator:
                     mask_carry_to_next_cluster = (trial_df[frame_index_col] > end_time_frame) & (trial_df[frame_index_col] < start_frame_next_cluster)
                     mask_drop_at_next_cluster = (trial_df[frame_index_col] == start_frame_next_cluster)
                     
-                    trial_df.loc[mask_exact_pickup, pickup_col] = True
-                    trial_df.loc[mask_carry_to_next_cluster, carrying_col] = True
-                    trial_df.loc[mask_drop_at_next_cluster, drop_col] = True
-
+                    ##### create a pickup at the end of the current cluster
+                    if check_pickup_validity(trial_df, pup_locations, pup_loc):
+                        trial_df.loc[mask_exact_pickup, pickup_col] = True
+                        trial_df.loc[mask_carry_to_next_cluster, carrying_col] = True
+                        trial_df.loc[mask_drop_at_next_cluster, drop_col] = True
+                    else:
+                        #print(f"Pickup at {end_time_frame} is invalid, skipping")
+                        raise ValueError(f"Pickup at {end_time_frame} for {mouse_id} - {day} - {trial_num} is invalid, Mouse does not move closer to the pup than 5 cm, skipping")
 
                 elif pup_loc == last_pup_location:
                     if success_type == "retrieval":
                         mask_exact_pickup = (trial_df[frame_index_col] == end_time_frame)
                         mask_carry_to_end = (trial_df[frame_index_col] > end_time_frame)
-                        trial_df.loc[mask_exact_pickup, pickup_col] = True
-                        trial_df.loc[mask_carry_to_end, carrying_col] = True
-                        trial_df.iloc[-1][retrieval_col] = True
+
+                        ### create a pickup at the end of the cluster
+                        if check_pickup_validity(trial_df, pup_locations, pup_loc):
+                            trial_df.loc[mask_exact_pickup, pickup_col] = True
+                            trial_df.loc[mask_carry_to_end, carrying_col] = True
+                            trial_df.iloc[-1][retrieval_col] = True
+                        else:
+                            #print(f"Pickup at {end_time_frame} is invalid, skipping")
+                            raise ValueError(f"Pickup at {end_time_frame} for {mouse_id} - {day} - {trial_num} is invalid, Mouse does not move closer to the pup than 5 cm, skipping")
 
                     elif success_type == "failed":
                         # propagate pup coordinates to the end of the trial and adjust end time of cluster
