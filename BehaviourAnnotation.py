@@ -705,14 +705,17 @@ class BehaviourAnnotator:
         os.makedirs(processed_data_dir, exist_ok = True)
         os.makedirs(f"{processed_data_dir}/{mouse_id}/{day}/trials/", exist_ok = True)
 
-        df_summary.to_csv(f"{processed_data_dir}/{mouse_id}/{day}/BehavSummary_{mouse_id}_{day}.csv", index = False)
+        if df_summary is not None:
+            df_summary.to_csv(f"{processed_data_dir}/{mouse_id}/{day}/BehavSummary_{mouse_id}_{day}.csv", index = False)
 
-        path = f"{processed_data_dir}/{mouse_id}/{day}/trials/trial{trial_num}_DLC_annotated_{mouse_id}_{day}.csv"
-        trial_df_annotated.to_csv(path, index=False)    
+        if trial_df_annotated is not None:
+            path = f"{processed_data_dir}/{mouse_id}/{day}/trials/trial{trial_num}_DLC_annotated_{mouse_id}_{day}.csv"
+            trial_df_annotated.to_csv(path, index=False)    
 
-        path = f"{processed_data_dir}/{mouse_id}/{day}/trials/{mouse_id}_{day}_trial{trial_num}_pup_location_dict.json"
-        with open(path, 'w') as f:
-            json.dump(pup_locations_annotated, f, indent=4)
+        if pup_locations_annotated is not None:
+            path = f"{processed_data_dir}/{mouse_id}/{day}/trials/{mouse_id}_{day}_trial{trial_num}_pup_location_dict.json"
+            with open(path, 'w') as f:
+                json.dump(pup_locations_annotated, f, indent=4)
         
     def run_pup_directed_behavior_annotation(self, mouse_id, day, trial_num,
                                                 trial_df, df_summary, pup_locations,
