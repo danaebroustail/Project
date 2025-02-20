@@ -565,12 +565,48 @@ class BehaviourAnnotator:
 
         return trial_df, pup_locations
 
+    def label_passive_behaviors_trial(self, trial_df, df_summary):
     
-    
-    # def label_passive_behaviors_trial()
-    
-    
-    # def resolve_simultaneous_labels(self, trial_df):
+        pup_x_col = self.config["DLC_columns"]["pup"]["x"]
+        pup_y_col = self.config["DLC_columns"]["pup"]["y"]
+        mouse_speed_col = self.config["DLC_behaviour_columns"]["mouse_speed"]
+        pixels_to_cm_ratio = self.config["pixels_to_cm_ratio"]
+        mouse_x_col = self.config["DLC_columns"]["mouse_position"]["x"]
+        mouse_y_col = self.config["DLC_columns"]["mouse_position"]["y"]
+        in_nest_col = self.config["Behavioral_states"]["in_nest"]
+
+        mouse_speed_cm = trial_df[mouse_speed_col] / pixels_to_cm_ratio
+        mask_walking = (mouse_speed_cm > 5)
+        mask_still = (mouse_speed_cm < 1)
+
+        trial_df[self.config["Behavioral_states"]["walking"]] = mask_walking
+        trial_df[self.config["Behavioral_states"]["still"]] = mask_still
+
+        trial_df = self.BF_instance.flag_nest_coordinates(trial_df, in_nest_col = in_nest_col,
+                                                        x = mouse_x_col, y = mouse_y_col,
+                                                        nest_bounds = self.config["nest_bounds"])
+
+        return trial_df
+
+    def resolve_simultaneous_labels(self, trial_df, final_behavior_col = "behavior_annotation"):
+
+        behaviors_dict = self.config["Behavioral_states"]
+        single_event_states = [val for key, val in behaviors_dict.items() if key in self.config["single_event_states"]]
+
+        ordered_behaviors = single_event_states + [behaviors_dict["carrying"]] + [behaviors_dict["in_nest"]] + [behaviors_dict["approach"]] + [behaviors_dict["active_interaction"]] + [behaviors_dict["crouching"]] + [behaviors_dict["still"]] + [behaviors_dict["walking"]]
+
+        trial_df[final_behavior_col] = 'none'
+
+        for behavior_name in ordered_behaviors:
+
+            # define the mask for the current behavior out of available behavior slots
+            mask_behavior = (trial_df[behavior_name]) & (trial_df[final_behavior_col] == 'none')
+            # edit the single behavior column to be false for all the behaviors
+            trial_df.loc[~mask_behavior, behavior_name] = False
+            # edit the final behavior column to be the current behavior
+            trial_df.loc[mask_behavior, final_behavior_col] = behavior_name
+
+        return trial_df
 
     def plot_behavioral_annotations(self, trial_df_annotated, df_summary, pup_locations, 
                                     mouse_id, day, trial_num, start_time = None, end_time = None, add_USV_plot = False,
@@ -731,36 +767,45 @@ class BehaviourAnnotator:
         print(f" ==== Example: {mouse_id} - {day} - {trial_num} ==== ")
 
         # 1. create default columns
-        print("1.Creating default columns")
+        print("===== * = * = 1. Creating default columns = * = * ======")
         trial_df = self.create_default_columns(trial_df)
 
         # 2. mark existing times
-        print("2.Marking existing times")
+        print("===== * = * = 2. Marking existing times = * = * ======")
         trial_df = self.mark_existing_times(trial_df, df_summary, trial_num)
 
-        # 3. assign pick up and success types
-        print("3.Assigning pick up and success types")
+        # 3. Assigning pick up and success types
+        print("===== * = * = 3. Assigning pick up and success types = * = * ======")
         pup_locations_assigned = self.assign_pick_up_and_success_types(pup_locations, df_summary, trial_num)
 
         # 4. compute distances
-        print("4.Computing distances")
+        print("===== * = * = 4. Computing distances = * = * ======")
         pup_locations_distances = self.compute_distances_clusters(pup_locations_assigned, trial_df)
 
         # 5. annotate trial
-        print("5.Annotating trial")
+        print("===== * = * = 5. Annotating trial = * = * ======")
         trial_df_annotated, pup_locations_annotated = self.annotate_full_trial(trial_df, trial_num, df_summary, pup_locations_distances)
 
+        # 8. plot passive behaviors
+        print("===== * = * = 8.Plotting passive behaviors = * = * ======")
+        trial_df_annotated = self.label_passive_behaviors_trial(trial_df_annotated, df_summary)
+
+        # 9. resolve simultaneous labels
+        print("===== * = * = 9.Resolving simultaneous labels = * = * ======")
+        trial_df_annotated_resolved = self.resolve_simultaneous_labels(trial_df_annotated)
+
         # 6. export trial
-        print("6.Exporting trial")
+        print("===== * = * = 6. Exporting trial = * = * ======")
         if export:
-            self.export_trial(trial_df_annotated, pup_locations_annotated, df_summary,
+            self.export_trial(trial_df_annotated_resolved, pup_locations_annotated, df_summary,
                             mouse_id, day, trial_num, processed_data_dir)
 
         # 7. plot behavioral annotations
-        print("7.Plotting behavioral annotations")
-        self.plot_behavioral_annotations(trial_df_annotated, df_summary, pup_locations_annotated,
+        print("===== * = * = 7.Plotting behavioral annotations = * = * ======")
+        self.plot_behavioral_annotations(trial_df_annotated_resolved, df_summary, pup_locations_annotated,
                             mouse_id, day, trial_num,
-                            start_time = None, end_time = None, add_USV_plot = False, export_plot = export)
+                            start_time = None, end_time = None, add_USV_plot = False, plot_dir = "full_resolved_annotation_plots", export_plot = True)
+
 
         return trial_df_annotated, pup_locations_annotated
 
