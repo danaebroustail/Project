@@ -104,6 +104,8 @@ class BehaviourAnnotator:
 
         self.distance_between_clusters_cm = self.config['distance_between_clusters_cm']
         self.pixels_to_cm_ratio = self.config['pixels_to_cm_ratio']
+        self.threshold_approach_speed_cms = self.config['threshold_approach_speed_cms']
+        self.threshold_approach_angle_degrees = self.config['threshold_approach_angle_degrees']
 
 
     def create_default_columns(self, trial_df):
@@ -421,6 +423,9 @@ class BehaviourAnnotator:
         time_seconds_col = self.DLC_cols["time"]
         frame_index_col = self.DLC_cols["frame"]
 
+        mouse_id = df_summary[self.DLC_summary_cols["animal_id"]].values[0]
+        day = df_summary[self.DLC_summary_cols["day"]].values[0]
+
         pup_x_col = self.DLC_cols["pup"]["x"]
         pup_y_col = self.DLC_cols["pup"]["y"]
         distance_to_pup_col = self.DLC_behaviour_cols["distance_mouse_pup"]
@@ -570,7 +575,7 @@ class BehaviourAnnotator:
                     next_cluster_id = pup_locations_keys[i+1]
 
                     start_frame_next_cluster, end_frame_next_cluster = get_start_end_frames_cluster(trial_df, pup_locations, next_cluster_id)
-
+                    
                     # insert a pickup at the end of the cluster, then carry to the next cluster, drop at the start of the next cluster
                     mask_exact_pickup = (trial_df[frame_index_col] == end_time_frame)
                     mask_carry_to_next_cluster = (trial_df[frame_index_col] > end_time_frame) & (trial_df[frame_index_col] < start_frame_next_cluster)
@@ -678,13 +683,16 @@ class BehaviourAnnotator:
 
     def plot_behavioral_annotations(self, trial_df_annotated, df_summary, pup_locations, 
                                     mouse_id, day, trial_num, start_time = None, end_time = None, add_USV_plot = False,
-                                    export_plot = False ):
+                                    add_head_angle_to_pup_plot = False, export_plot = False, plot_dir = "full_annotation_plots"):
         """Plots the labeled behaviors and USV data leading up to pup pickup"""
 
         trial_pickup_time = get_pick_up_time(df_summary, trial_num,
                                 trial_num_col = self.DLC_summary_cols["trial_num"],
                                 pick_up_time_col = self.DLC_summary_cols["mouse_first_pick_up"])
         time_seconds_col = self.DLC_cols["time"]
+        trial_num_col = self.DLC_summary_cols["trial_num"]
+        success_col = self.DLC_summary_cols["trial_success"]
+        success = df_summary[df_summary[trial_num_col] == trial_num][success_col].values[0]
 
         if start_time is None:
             trial_start_time = trial_df_annotated[time_seconds_col].iloc[0]
@@ -706,6 +714,7 @@ class BehaviourAnnotator:
         pickup_col = self.states["pickup"]
         drop_col = self.states["drop"]
         retrieval_col = self.states["retrieval"]
+        std_frequency_col = self.config["USV_processing"]["output_columns"]["std_frequency"]
 
         states = [self.states["approach"], self.states["crouching"], self.states["active_interaction"],
                     self.states["pickup"], self.states["drop"], self.states["carrying"], self.states["retrieval"]]
@@ -720,13 +729,31 @@ class BehaviourAnnotator:
         fig, ax = plt.subplots(1, 1, figsize=(12, 6))
         trial_df_annotated[distance_to_pup_col+"_cm"] = trial_df_annotated[distance_to_pup_col] / pixels_to_cm_ratio
         trial_df_annotated.plot(x="time_seconds", y=[distance_to_pup_col+"_cm"], color="black", linewidth=1, ax=ax, zorder = 0)
+        ax.set_ylabel("Distance of mouse to pup (cm)", color="black")
+        ax.set_xlabel("Time (s)")
+
+        if add_head_angle_to_pup_plot:
+            ax2 = ax.twinx()
+            trial_df_annotated.plot(x="time_seconds", y=["head_angle_to_pup_degrees"], color="red", linewidth=1, ax=ax2, zorder = 0, alpha=0.5)
+            #ax2.set_ylabel("Head angle to pup (degrees)", color="red")
 
         # Add USV plot
         if add_USV_plot:
-            ax2 = ax.twinx()
-            trial_df_annotated.plot(x="time_seconds", y=["average_frequency"],
-                    ax=ax2, kind="scatter", color="purple", zorder=0, s=10)
-            ax2.set_ylabel("Average frequency of USVs (kHz)", color="purple")
+            ax3 = ax.twinx()
+            
+            # Plot average frequency with error bars if std exists
+            if std_frequency_col in trial_df_annotated.columns:
+                ax3.errorbar(x=trial_df_annotated["time_seconds"], 
+                            y=trial_df_annotated["average_frequency"],
+                            yerr=trial_df_annotated[std_frequency_col],
+                            fmt='o', color="purple", markersize=3, 
+                            alpha=0.5, zorder=0, elinewidth=1)
+            else:
+                # Original scatter plot if no std available
+                trial_df_annotated.plot(x="time_seconds", y=["average_frequency"],
+                        ax=ax3, kind="scatter", color="purple", zorder=0, s=5, alpha=0.5)
+            
+            ax3.set_ylabel("Average frequency of USVs (kHz)", color="purple")
 
         # for each state, pick a color
         dict_colors = {self.states["approach"]: "green",
@@ -735,7 +762,11 @@ class BehaviourAnnotator:
                     self.states["pickup"]: "magenta",
                     self.states["drop"]: "crimson",
                     self.states["carrying"]: "darkorange",
-                    self.states["retrieval"]: "lime"}
+                    self.states["retrieval"]: "lime",
+                    self.states["walking"]: "yellow",
+                    self.states["still"]: "gray",
+                    self.states["in_nest"]: "cyan"}
+
         pup_locations_keys = sorted(pup_locations.keys(), key=lambda x: pup_locations[x]["start_time"])
         gradient_blues = ["deepskyblue",  "royalblue",  "darkblue", "blue", "blueviolet"]
         colors_pup_locations = {pup_loc: gradient_blues[i] for i, pup_loc in enumerate(pup_locations_keys)}
@@ -754,31 +785,32 @@ class BehaviourAnnotator:
         # Add behavior shading
         for behavior, color in dict_colors.items():
             # Get time points where behavior is True
-            behavior_times = trial_df_annotated.loc[trial_df_annotated[behavior], time_seconds_col]
-            times = trial_df_annotated[time_seconds_col]
-            # Create spans for each time point
-            if behavior_times.size > 0:
-                if behavior in single_event_states:
-                    for time in behavior_times:
-                        ax.axvline(x=time, 
-                                ymin=0, ymax=0.875,  # Same vertical span as before
-                                color=color,
-                                linewidth=2,  # Makes the line thicker
-                                alpha=1., zorder = 2)
-                else:
-                    ax.fill_between(times, 0, 0.875, 
-                            where=trial_df_annotated[behavior],
-                            transform=ax.get_xaxis_transform(),
-                            facecolor=color, alpha=0.4, zorder = 1)
+            if behavior in trial_df_annotated.columns:
+
+                behavior_times = trial_df_annotated.loc[trial_df_annotated[behavior], time_seconds_col]
+                times = trial_df_annotated[time_seconds_col]
+                # Create spans for each time point
+                if behavior_times.size > 0:
+                    if behavior in single_event_states:
+                        for time in behavior_times:
+                            ax.axvline(x=time, 
+                                    ymin=0, ymax=0.875,  # Same vertical span as before
+                                    color=color,
+                                    linewidth=2,  # Makes the line thicker
+                                    alpha=1., zorder = 2)
+                    else:
+                        ax.fill_between(times, 0, 0.875, 
+                                where=trial_df_annotated[behavior],
+                                transform=ax.get_xaxis_transform(),
+                                facecolor=color, alpha=0.4, zorder = 1)
 
         # Add legend
         legend_elements_states_span = [mpatches.Patch(color=color, label=state, alpha=0.5) for state, color in dict_colors.items() if state not in single_event_states]
         legend_states_single_event = [mpatches.Patch(color=color, label=state, alpha=1.) for state, color in dict_colors.items() if state in single_event_states]
         legend_elements_pup_location = [mpatches.Patch(color=color, label=pup_loc, alpha=1) for pup_loc, color in colors_pup_locations.items()]
 
-
         legend_elements = legend_elements_states_span + legend_states_single_event
-        legend_elements.append(mlines.Line2D([], [], color='black', label='Distance to pup'))
+        #legend_elements.append(mlines.Line2D([], [], color='black', label='Distance to pup'))
 
         if add_USV_plot:
             if std_frequency_col in trial_df_annotated.columns:
@@ -795,16 +827,15 @@ class BehaviourAnnotator:
         # Add the first legend manually to the plot
         
         ax.add_artist(first_legend)
-        # Create second legend in upper right with high zorder
-        second_legend = ax.legend(handles=legend_elements_pup_location, loc="upper right")
+        second_legend = ax.legend(handles=legend_elements_pup_location, loc="upper right", bbox_to_anchor=(1.0, 0.95))
         ax.add_artist(second_legend)
         
         ax.set_title(f"{mouse_id} - {day} - Trial {trial_num} | Success was: {success} | Annotations from trial start at {trial_start_time_minutes} to end of trial at {trial_end_time_minutes}, pick up at {trial_pickup_time_minutes}")
         
         if export_plot:
-            os.makedirs("plots/full_annotation_plots", exist_ok = True)
-            os.makedirs(f"plots/full_annotation_plots/{mouse_id}/{day}", exist_ok = True)
-            path = f"plots/full_annotation_plots/{mouse_id}/{day}/{mouse_id}_{day}_trial_{trial_num}.png"
+            os.makedirs(f"plots/{plot_dir}", exist_ok = True)
+            os.makedirs(f"plots/{plot_dir}/{mouse_id}/{day}", exist_ok = True)
+            path = f"plots/{plot_dir}/{mouse_id}/{day}/{mouse_id}_{day}_trial_{trial_num}.png"
             plt.savefig(path)
             plt.show()
         else:
