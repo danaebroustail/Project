@@ -98,22 +98,34 @@ class VocalFeatureExtractor:
         """
 
         bout_window_col = self.USV_output_cols["bout_window_index"]
-        df_Avi_USV_trial_grouped = trial_USV.groupby(bout_window_col).agg({self.USV_input_cols["duration_col"]: "mean",
-                                                                         self.USV_input_cols["power_col"]: "mean",
-                                                                         self.USV_input_cols["frequency_col"]: "mean",
-                                                                         self.USV_output_cols["bout_window_index"]: "count"})
-        # renames the columns
-        df_Avi_USV_trial_grouped.columns = [ self.USV_output_cols["average_duration"],
-                                            self.USV_output_cols["average_power"],
-                                            self.USV_output_cols["average_frequency"],
-                                            self.USV_output_cols["call_number"]]
+        # Fix: Create unique keys for each aggregation
+        agg_dict = {
+            self.USV_input_cols["duration_col"]: "mean",
+            self.USV_input_cols["power_col"]: ["mean", "std"],
+            self.USV_input_cols["frequency_col"]: ["mean", "std"],
+            self.USV_output_cols["bout_window_index"]: "count"
+        }
+        
+        df_Avi_USV_trial_grouped = trial_USV.groupby(bout_window_col).agg(agg_dict)
+        
+        # Flatten the column names and rename them
+        df_Avi_USV_trial_grouped.columns = [
+            self.USV_output_cols["average_duration"],
+            self.USV_output_cols["average_power"],
+            self.USV_output_cols["std_power"],
+            self.USV_output_cols["average_frequency"],
+            self.USV_output_cols["std_frequency"],
+            self.USV_output_cols["call_number"]
+        ]
         
         for bout_window in trial_DLC[bout_window_col].unique():
             bout = df_Avi_USV_trial_grouped[df_Avi_USV_trial_grouped.index == bout_window]
             if len(bout) > 0:
                 for output_col in [ self.USV_output_cols["average_duration"],
                                     self.USV_output_cols["average_power"],
+                                    self.USV_output_cols["std_power"],
                                     self.USV_output_cols["average_frequency"],
+                                    self.USV_output_cols["std_frequency"],
                                     self.USV_output_cols["call_number"]]:
                     trial_DLC.loc[trial_DLC[bout_window_col] == bout_window, output_col] = bout[output_col].values[0]
 
