@@ -10,6 +10,7 @@ from BehaviourFeatureExtractor import convert_seconds_to_frame
 import pprint
 import copy
 import os
+import networkx as nx
 
 
 def convert_seconds_to_frame(seconds, frame_rate = 30):
@@ -752,10 +753,285 @@ class BehaviourAnnotator:
                             start_time = None, end_time = None, add_USV_plot = False, export_plot = export)
 
         return trial_df_annotated, pup_locations_annotated
-        
+
+    def get_and_export_transition_paths_for_animal(self, processed_and_annotated_data, mouse_ids, days, export = False,
+                                                    transition_path_export_dir = "transition_paths",
+                                                    export_csv_dir = "annotated_cleaned_resolved_data",
+                                                    plot_export_dir = "full_cleaned_resolved_annotation_plots"): 
+        transition_paths_dict = {}
+        for mouse_id in processed_and_annotated_data.keys():
+            transition_paths_dict[mouse_id] = {}
+            for day in days:
+                transition_paths_dict[mouse_id][day] = {}
+                for trial_num in processed_and_annotated_data[mouse_id][day]["trials"].keys():
+
+                    trial_df_annotated = copy.deepcopy(processed_and_annotated_data[mouse_id][day]["trials"][trial_num]["dlc_data"])
+                    df_summary = copy.deepcopy(processed_and_annotated_data[mouse_id][day]["Behavior"]["df_summary"])
+                    pup_locations_annotated = copy.deepcopy(processed_and_annotated_data[mouse_id][day]["trials"][trial_num]["pup_locations"])
+
+                    trial_df_annotated_cleaned, transition_path = self.get_transition_path_for_trial(trial_df_annotated,
+                                                                final_behavior_col = "behavior_annotation")
+
+                    transition_paths_dict[mouse_id][day][trial_num] = transition_path
+
+                    if export:
+                        self.export_trial(trial_df_annotated_cleaned, pup_locations_annotated, df_summary,
+                                                mouse_id, day, trial_num, processed_data_dir = export_csv_dir)
+
+                        self.plot_behavioral_annotations(trial_df_annotated_cleaned, df_summary, pup_locations_annotated,
+                                    mouse_id, day, trial_num, plot_dir = plot_export_dir, export_plot = export)
+            if export:
+                os.makedirs(transition_path_export_dir, exist_ok=True)
+                with open(f"{transition_path_export_dir}/{mouse_id}_transition_paths_dict.json", "w") as f:
+                    mouse_specific_dict = {mouse_id: transition_paths_dict[mouse_id]}
+                    json.dump(mouse_specific_dict, f, indent=4)
+
+        return transition_paths_dict
+
+    def get_transition_path_for_trial(self, trial_df, final_behavior_col = "behavior_annotation"):
     
+        def is_valid_state(state):
+            
+            single_event_states = [val for key, val in self.config["Behavioral_states"].items() if key in self.config["single_event_states"]]
+            duration_state = state['end_time'] - state['start_time']
+            print(f"Duration state: {duration_state}")
+            threshold_duration_state_secs =  0.7
 
+            if state['behavior_name'] in single_event_states:
+                return True
+            elif duration_state > threshold_duration_state_secs:
+                return True
+            else:
+                return False
 
+        def remove_short_state(state, trial_df):
+
+            mask_state = (trial_df[state['behavior_name']]) & \
+                        (trial_df['time_seconds'] >= state['start_time']) & \
+                        (trial_df['time_seconds'] < state['end_time'])
+            print(f"Removing short state: {state['behavior_name']}, lasting {state['end_time'] - state['start_time']} seconds")
+
+            # print value counts before and after
+            print(f"Value counts before: {trial_df[state['behavior_name']].value_counts()}")
+            print(f"Value counts before: {trial_df[final_behavior_col].value_counts()[state['behavior_name']] if state['behavior_name'] in trial_df[final_behavior_col].value_counts() else 0}")
+
+            trial_df.loc[mask_state, final_behavior_col] = 'none'
+            trial_df.loc[mask_state, state['behavior_name']] = False
+
+            print(f"Value counts after: {trial_df[state['behavior_name']].value_counts()}")
+            print(f"Value counts after: {trial_df[final_behavior_col].value_counts()[state['behavior_name']] if state['behavior_name'] in trial_df[final_behavior_col].value_counts() else 0}")
+            return trial_df
+
+        time_seconds_col = self.config["DLC_columns"]["time"]
+        current_state = {'behavior_name': 'none', 'start_time': None, 'end_time': None}
+        current_state_index = 0
+        list_states = {}
+
+        for i, bhv_name in enumerate(trial_df[final_behavior_col]):
+            # close previous state if behavior name changes
+            current_time = trial_df[time_seconds_col].iloc[i]
+            
+            if bhv_name != current_state['behavior_name']:
+                if current_state['behavior_name'] != "none":
+                    current_state['end_time'] = current_time
+                    print(f"Current state: {current_state}")
+
+                    if is_valid_state(current_state):
+                        print(f"Valid state: {current_state['behavior_name']}, lasting {current_state['end_time'] - current_state['start_time']} seconds")
+                        list_states[current_state_index] = current_state
+                        current_state_index += 1
+                    else:
+                        print(f"Invalid state: {current_state['behavior_name']}, lasting {current_state['end_time'] - current_state['start_time']} seconds")
+                        # remove the short state
+                        trial_df = remove_short_state(current_state, trial_df)
+
+                # open new state
+                current_state = {'behavior_name': bhv_name, 'start_time': current_time, 'end_time': None}
+
+        # a behavior was created or closed at the last frame
+        current_state['end_time'] = trial_df[time_seconds_col].iloc[-1]
+        if current_state['behavior_name'] != "none" and is_valid_state(current_state):
+            list_states[current_state_index] = current_state
+            current_state_index += 1
+
+        sorted_list_state_keys = sorted(list_states.keys())
+
+        transition_path = [list_states[key]['behavior_name'] for key in sorted_list_state_keys]
+        print(f"Transition path: start: {transition_path}")
+
+        return trial_df, transition_path
+        
+    def create_transition_matrices_from_transition_paths(self, mouse_ids, days, transition_paths_dict, category = ["Mother", "Virgin"]):
+        
+        states = list(self.config["Behavioral_states"].values())
+        dict_transition_matrices = {animal: {day: create_default_counts_matrix(states) for day in days} for animal in category}
+
+        for category in dict_transition_matrices.keys():
+
+            first_char = category[0]
+            mouse_ids_category = [mouse_id for mouse_id in mouse_ids if mouse_id.startswith(first_char)]
+
+            for mouse_id in mouse_ids_category:
+                for day in transition_paths_dict[mouse_id].keys():
+                    for trial_num in transition_paths_dict[mouse_id][day].keys():
+                        transition_path = transition_paths_dict[mouse_id][day][trial_num]
+                        transition_matrix = get_transition_pairs(transition_path)
+                        base_matrix = dict_transition_matrices[category][day]
+                        dict_transition_matrices[category][day] = add_trial_to_counts_matrix(base_matrix, transition_matrix)
+                
+            
+        for category in dict_transition_matrices.keys():
+            for day in dict_transition_matrices[category].keys():
+                dict_transition_matrices[category][day] = normalize_matrix(dict_transition_matrices[category][day])
+                print(f"Final transition matrix for {category} - {day}:")
+                display(dict_transition_matrices[category][day])
+
+        return dict_transition_matrices
+
+    def plot_transition_graph(self, prob_matrix,
+                            title="Transition Probability Graph", threshold=0.0, ax=None):
+        if ax is None:
+            plt.figure(figsize=(12, 8))
+            ax = plt.gca()
+        
+        # Create directed graph
+        G = nx.DiGraph()
+        
+        # Add edges with weights from probability matrix
+        for source in prob_matrix.index:
+            for target in prob_matrix.columns:
+                prob = prob_matrix.loc[source, target]
+                if prob > threshold:  # Only add edges above threshold
+                    G.add_edge(source, target, weight=prob)
+        
+        # Define fixed positions for each state
+        fixed_positions = {
+            self.config["Behavioral_states"]["approach"]: (0, 0),
+            self.config["Behavioral_states"]["crouching"]: (-1, 1), 
+            self.config["Behavioral_states"]["active_interaction"]: (1, 1),
+            self.config["Behavioral_states"]["pickup"]: (2, 0),
+            self.config["Behavioral_states"]["drop"]: (2, -1),
+            self.config["Behavioral_states"]["carrying"]: (1, -1),
+            self.config["Behavioral_states"]["retrieval"]: (0, -1),
+            self.config["Behavioral_states"]["walking"]: (-2, 0),
+            self.config["Behavioral_states"]["still"]: (-1, -1),
+            self.config["Behavioral_states"]["in_nest"]: (-2, 1)
+        }
+        
+        # Define colors for each state based on annotation colors
+        node_colors = {self.config["Behavioral_states"]["approach"]: "green",
+                        self.config["Behavioral_states"]["crouching"]: "red",
+                        self.config["Behavioral_states"]["active_interaction"]: "dodgerblue",
+                        self.config["Behavioral_states"]["pickup"]: "magenta",
+                        self.config["Behavioral_states"]["drop"]: "crimson",
+                        self.config["Behavioral_states"]["carrying"]: "darkorange",
+                        self.config["Behavioral_states"]["retrieval"]: "lime",
+                        self.config["Behavioral_states"]["walking"]: "yellow",
+                        self.config["Behavioral_states"]["still"]: "gray",
+                        self.config["Behavioral_states"]["in_nest"]: "cyan"}
+        
+        colors = [node_colors[node] for node in G.nodes()]
+        nx.draw_networkx_nodes(G, fixed_positions, node_color=colors,
+                            node_size=3000, alpha=0.3, ax=ax)
+        
+        # Draw edges with varying width based on probability
+        edges = G.edges()
+        weights = [G[u][v]['weight'] * 5 for u,v in edges]  # Scale up weights for visibility
+        
+        # Draw edges with curved arrows and add labels along curves
+        for (u, v), weight in zip(edges, weights):
+            if u != v:
+                # Create curved arrow
+                rad = 0.3  # Controls curvature
+                connectionstyle = f'arc3,rad={rad}'
+                # Scale arrowsize with probability but with reduced scaling
+                arrowsize = max(5, G[u][v]['weight'] * 10)  # Reduced max scaling from 20 to 10
+                nx.draw_networkx_edges(G, fixed_positions, edgelist=[(u,v)], width=weight,
+                                    edge_color='gray', arrowsize=arrowsize,
+                                    connectionstyle=connectionstyle, ax=ax)
+                
+                # Calculate midpoint along the curved path for label placement
+                start = fixed_positions[u]
+                end = fixed_positions[v]
+                
+                # Calculate midpoint with curve offset
+                mid_x = (start[0] + end[0])/2
+                mid_y = (start[1] + end[1])/2
+                # Offset perpendicular to edge direction to follow curve
+                dx = end[0] - start[0]
+                dy = end[1] - start[1]
+                mid_x += rad * dy * 0.5  # Offset x based on curve direction
+                mid_y -= rad * dx * 0.5  # Offset y based on curve direction
+                
+                if G[u][v]['weight'] >= 0.3:  # Only label edges with prob >= 0.3
+                    ax.annotate(f"{G[u][v]['weight']:.2f}",
+                                xy=(mid_x, mid_y),
+                                xytext=(0, 0),
+                                textcoords='offset points',
+                                ha='center',
+                                va='center',
+                                bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+            else:
+                # Draw self-loops normally
+                arrowsize = max(5, G[u][v]['weight'] * 10)  # Reduced max scaling for self-loops too
+                nx.draw_networkx_edges(G, fixed_positions, edgelist=[(u,v)], width=weight,
+                                    edge_color='gray', arrowsize=arrowsize, ax=ax)
+                if G[u][v]['weight'] >= 0.3:
+                    # Get node position and place label above for self-loops
+                    node_pos = fixed_positions[u]
+                    ax.annotate(f"{G[u][v]['weight']:.2f}",
+                                xy=(node_pos[0], node_pos[1] + 0.15),
+                                xytext=(0, 0),
+                                textcoords='offset points',
+                                ha='center',
+                                va='center',
+                                bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+        
+        # Add node labels
+        nx.draw_networkx_labels(G, fixed_positions, ax=ax)
+        
+        ax.set_title(title)
+        ax.axis('off')
+        
+        if ax is None:
+            plt.show()
+
+### transition path functions ####
+
+def load_transition_paths_dict(transition_path_export_dir, mouse_ids, days):
+    transition_paths_dict = {}
+    for mouse_id in mouse_ids:
+        transition_paths_dict[mouse_id] = {}
+        # read json file
+        with open(f"{transition_path_export_dir}/{mouse_id}_transition_paths_dict.json", "r") as f:
+            transition_paths_dict[mouse_id] = json.load(f)[mouse_id]
+        
+    return transition_paths_dict
+
+# Convert transition sequences into from/to pairs
+def get_transition_pairs(transition_path):
+    counts_matrix = pd.crosstab(
+        pd.Series(transition_path[:-1], name='from'),
+        pd.Series(transition_path[1:], name='to'),
+        normalize=False
+    )
+    return counts_matrix
+
+def create_default_counts_matrix(states):
+
+    default_matrix = pd.DataFrame(0,index=pd.Index(states, name='from'),
+                        columns=pd.Index(states, name='to'))
+    return default_matrix
+
+def add_trial_to_counts_matrix(base_matrix, trials_matrix):
+    return base_matrix.add(trials_matrix, fill_value=0)
+
+def normalize_matrix(final_counts_matrix):
+     # Create a copy to avoid modifying the original
+    normalized = final_counts_matrix.copy()
+    # Divide each row by its sum
+    normalized = normalized.div(normalized.sum(axis=1), axis=0).fillna(0)
+    return normalized
 
 
 ####   Previous analysis functions restricted to only successful trials ####
