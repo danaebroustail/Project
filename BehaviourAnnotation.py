@@ -172,9 +172,31 @@ class BehaviourAnnotator:
             list_included = [pup_loc for pup_loc in pup_locations_keys if pick_up_time >= pup_locations[pup_loc]["start_time"] and pick_up_time <= pup_locations[pup_loc]["end_time"]]
 
             if list_included:
+                print("Found pick up time included in pup location:")
                 location_included = list_included[0] # only one element in list_included
-                pup_locations[location_included]["pickup"] = "included"
-                marked_locations += [location_included]
+                # check if the pickup is located at the edges of the cluster (within a certain tolerance)
+
+                time_to_tolerance_secs = 0.03
+                difference_start_time = np.abs(pick_up_time - pup_locations[location_included]["start_time"])
+                difference_end_time = np.abs(pick_up_time - pup_locations[location_included]["end_time"])
+
+                if difference_start_time < time_to_tolerance_secs:
+                    pup_locations[location_included]["pickup"] = "before"
+                    print(f"Pick up time at {pick_up_time} set to before, close to start_time of cluster {location_included}: {pup_locations[location_included]['start_time']}")
+                    marked_locations += [location_included]
+                elif difference_end_time < time_to_tolerance_secs:
+                    pup_locations[location_included]["pickup"] = "after"
+                    print(f"Pick up time at {pick_up_time} set to after, close to end_time of cluster {location_included}: {pup_locations[location_included]['end_time']}")
+                    marked_locations += [location_included]
+                else:
+                    pup_locations[location_included]["pickup"] = "included"
+                    print(f"Pick up time at {pick_up_time} set to included, within the cluster {location_included}")
+                    marked_locations += [location_included]
+                    
+
+                # check if the pickup is included in the cluster
+                # pup_locations[location_included]["pickup"] = "included"
+                # marked_locations += [location_included]
 
             else:
                 if list_before:
