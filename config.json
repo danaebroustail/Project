@@ -110,14 +110,16 @@
         "frequency_col": "PrincipalFrequency_kHz_",
         "duration_col": "CallLength_s_",
         "begin_time_col": "BeginTime_s_",
-        "begin_time_col": "EndTime_s_",
+        "end_time_col": "EndTime_s_",
         "accepted_col": "Accepted"
     },
     "output_columns": {
         "bout_window_index": "bout_window_index",
         "call_number": "call_number",
         "average_power": "average_power",
+        "std_power": "std_power",
         "average_frequency": "average_frequency",
+        "std_frequency": "std_frequency",
         "average_duration": "average_duration"
     }
 },
@@ -145,13 +147,15 @@
 "frame_index_to_drop": 150,
 "dlc_file_tags": ["resnet50", "dlc", "shuffle", "oct"],
 "minimum_distance_to_nest": 40,
-"likelihood_threshold": 0.8,
+"likelihood_threshold": 0.7,
 "distance_between_clusters_cm": 5,
 "distance_to_pup_box_cm": 10,
 "speed_threshold_cms": 25,
 "time_overlap_tolerance": 0.3,
 "threshold_likelihood_pup": 0.7,
 "threshold_intra_distance_pup_cm": 10,
-"threshold_speed_pup_cm": 5
-
+"threshold_speed_pup_cm": 5,
+"threshold_approach_angle_degrees": 90,
+"threshold_approach_speed_cms": -0.1,
+"pick_up_time_tolerance_secs": 0.03
 }
