@@ -676,19 +676,26 @@ class BehaviourAnnotator:
         legend_elements = legend_elements_states_span + legend_states_single_event
         legend_elements.append(mlines.Line2D([], [], color='black', label='Distance to pup'))
 
-        
+        if add_USV_plot:
+            if std_frequency_col in trial_df_annotated.columns:
+                legend_elements.append(mlines.Line2D([], [], color='purple', marker='o', 
+                             linestyle='None', label='Average frequency of USVs (with std)'))
+            else:
+                legend_elements.append(mlines.Line2D([], [], color='purple', marker='o', 
+                             linestyle='None', label='Average frequency of USVs'))
+        if add_head_angle_to_pup_plot:
+            legend_elements.append(mlines.Line2D([], [], color='red', label='Head angle to pup'))
+
         # Create first legend in lower right with high zorder
         first_legend = ax.legend(handles=legend_elements, loc="lower right")
         # Add the first legend manually to the plot
+        
         ax.add_artist(first_legend)
         # Create second legend in upper right with high zorder
         second_legend = ax.legend(handles=legend_elements_pup_location, loc="upper right")
         ax.add_artist(second_legend)
-        # Create third legend for distance curve with high zorder
-        distance_legend = ax.legend(handles=[mlines.Line2D([], [], color='black', label='Distance to pup')], loc='center right')
-        ax.add_artist(distance_legend)
-
-        ax.set_title(f"{mouse_id} - {day} - Trial {trial_num}: Distance to pup and USV to pick up point at {trial_pickup_time_minutes}, trial start was at {trial_start_time_minutes}")
+        
+        ax.set_title(f"{mouse_id} - {day} - Trial {trial_num} | Success was: {success} | Annotations from trial start at {trial_start_time_minutes} to end of trial at {trial_end_time_minutes}, pick up at {trial_pickup_time_minutes}")
         
         if export_plot:
             os.makedirs("plots/full_annotation_plots", exist_ok = True)
