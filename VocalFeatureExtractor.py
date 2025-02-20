@@ -25,7 +25,7 @@ class VocalFeatureExtractor:
         self.USV_input_cols = self.config['USV_processing']['input_columns']
         self.USV_output_cols = self.config['USV_processing']['output_columns']
         self.begin_time_USV = self.USV_input_cols['begin_time_col']
-        self.end_time_USV = self.USV_input_cols['begin_time_col']
+        self.end_time_USV = self.USV_input_cols['end_time_col']
         self.frames_per_bout = self.config["number_of_frames_per_bout"]
 
         self.time_col = self.DLC_cols['time']
