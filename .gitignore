@@ -5,3 +5,6 @@ visualizations**/
 plots/
 processed_data/
 annotated_data/
+*.ipynb
+*_data/
+*paths/
