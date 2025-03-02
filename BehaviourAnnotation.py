@@ -106,7 +106,15 @@ class BehaviourAnnotator:
         self.pixels_to_cm_ratio = self.config['pixels_to_cm_ratio']
         self.threshold_approach_speed_cms = self.config['threshold_approach_speed_cms']
         self.threshold_approach_angle_degrees = self.config['threshold_approach_angle_degrees']
-
+        self.threshold_crouching_distance_pup_cm = self.config['threshold_crouching_distance_pup_cm']
+        self.threshold_crouching_speed_cms = self.config['threshold_crouching_speed_cms']
+        self.threshold_active_interaction_distance_head_pup_cm = self.config['threshold_active_interaction_distance_head_pup_cm']
+        self.threshold_active_interaction_speed_cms = self.config['threshold_active_interaction_speed_cms']
+        self.threshold_duration_state_secs = self.config['threshold_duration_state_secs']
+        self.threshold_speed_walking_cms = self.config['threshold_speed_walking_cms']
+        self.threshold_speed_still_cms = self.config['threshold_speed_still_cms']
+        self.threshold_distance_to_pup_for_pickup_cm = self.config['threshold_distance_to_pup_for_pickup_cm']
+        self.pick_up_time_tolerance_secs = self.config['pick_up_time_tolerance_secs']
 
     def create_default_columns(self, trial_df):
         for state in self.states:
@@ -178,7 +186,7 @@ class BehaviourAnnotator:
                 location_included = list_included[0] # only one element in list_included
                 # check if the pickup is located at the edges of the cluster (within a certain tolerance)
 
-                time_to_tolerance_secs = 0.03
+                time_to_tolerance_secs = self.pick_up_time_tolerance_secs
                 difference_start_time = np.abs(pick_up_time - pup_locations[location_included]["start_time"])
                 difference_end_time = np.abs(pick_up_time - pup_locations[location_included]["end_time"])
 
@@ -260,8 +268,9 @@ class BehaviourAnnotator:
 
         return pup_locations
     
-    def label_pup_interaction_behaviors_trial(self, trial_df, trial_num, start_time, end_time, df_summary, kernel_size=20,
-                                  pre_event_window_size_time=10, frame_rate=30,):
+    def label_pup_interaction_behaviors_trial(self, trial_df, trial_num, start_time, end_time,
+                                            df_summary, kernel_size=20,
+                                            frame_rate=30,):
         """Labels mouse behaviors (approach, crouching, active interaction) in the time window before pup pickup"""
         
         time_seconds_col = self.DLC_cols["time"]
@@ -312,8 +321,8 @@ class BehaviourAnnotator:
         
         # Label behaviors
         mask_approach = (window[distance_to_head_col + "_cm" + "_deriv" + "_convolved"] < self.threshold_approach_speed_cms) & (window[head_angle_to_pup_col + "_convolved"] <=  self.threshold_approach_angle_degrees)
-        mask_crouching = (window[distance_to_pup_col + "_cm"] < 2) & (window["mouse_speed_px/s_cm_convolved"] < 5)
-        mask_active_interaction = (window[distance_to_head_col + "_cm"] < 2) & (window["mouse_speed_px/s_cm_convolved"] < 5)
+        mask_crouching = (window[distance_to_pup_col + "_cm"] < self.threshold_crouching_distance_pup_cm) & (window[mouse_speed_col+"_cm_convolved"] < self.threshold_crouching_speed_cms)
+        mask_active_interaction = (window[distance_to_head_col + "_cm"] < self.threshold_active_interaction_distance_head_pup_cm) & (window[mouse_speed_col+"_cm_convolved"] < self.threshold_active_interaction_speed_cms)
             
         # mask approach, crouching and active interaction
         window[approach_col] = mask_approach
@@ -337,7 +346,7 @@ class BehaviourAnnotator:
 
             frames_before_pickup_distance_mean_cm = window[distance_to_pup_col].iloc[-num_frames:].mean() / self.pixels_to_cm_ratio
 
-            threshold_distance_to_pup_cm = 5
+            threshold_distance_to_pup_cm = self.threshold_distance_to_pup_for_pickup_cm
 
             if (frames_before_pickup_distance_mean_cm > threshold_distance_to_pup_cm):
                 return False
@@ -649,8 +658,8 @@ class BehaviourAnnotator:
         in_nest_col = self.config["Behavioral_states"]["in_nest"]
 
         mouse_speed_cm = trial_df[mouse_speed_col] / pixels_to_cm_ratio
-        mask_walking = (mouse_speed_cm > 5)
-        mask_still = (mouse_speed_cm < 1)
+        mask_walking = (mouse_speed_cm > self.threshold_speed_walking_cms)
+        mask_still = (mouse_speed_cm < self.threshold_speed_still_cms)
 
         trial_df[self.config["Behavioral_states"]["walking"]] = mask_walking
         trial_df[self.config["Behavioral_states"]["still"]] = mask_still
@@ -949,7 +958,7 @@ class BehaviourAnnotator:
             single_event_states = [val for key, val in self.config["Behavioral_states"].items() if key in self.config["single_event_states"]]
             duration_state = state['end_time'] - state['start_time']
             print(f"Duration state: {duration_state}")
-            threshold_duration_state_secs =  0.7
+            threshold_duration_state_secs = self.threshold_duration_state_secs
 
             if state['behavior_name'] in single_event_states:
                 return True
@@ -1162,8 +1171,8 @@ def load_transition_paths_dict(transition_path_export_dir, mouse_ids, days):
         
     return transition_paths_dict
 
-# Convert transition sequences into from/to pairs
 def get_transition_pairs(transition_path):
+    """Convert transition sequences into from/to pairs"""
     counts_matrix = pd.crosstab(
         pd.Series(transition_path[:-1], name='from'),
         pd.Series(transition_path[1:], name='to'),
@@ -1187,9 +1196,12 @@ def normalize_matrix(final_counts_matrix):
     normalized = normalized.div(normalized.sum(axis=1), axis=0).fillna(0)
     return normalized
 
+###  duration analysis functions ####
+
+
+
 
 ####   Previous analysis functions restricted to only successful trials ####
-
 
 def find_pickup_point(experiment_data, mouse_id, day, trial_num, config_BF):
 
@@ -1268,10 +1280,6 @@ def label_pup_interaction_behaviors(experiment_data, mouse_id, day, trial_num,
 def plot_pup_usv_to_pickup_point(experiment_data, mouse_id, day, trial_num, window=None, config_BF=None, BF_instance=None):
     """Plots the labeled behaviors and USV data leading up to pup pickup"""
     
-    #df_summary = experiment_data[ms_id][d]["Behavior"]["df_summary"].copy()
-    #trials = experiment_data[ms_id][d]["trials"].copy()
-    #trial_DLC = trials[trial_num]["dlc_data"].copy()
-    
     # clearing the plot
     plt.close('all')
 
@@ -1327,7 +1335,7 @@ def plot_pup_usv_to_pickup_point(experiment_data, mouse_id, day, trial_num, wind
             "crouching_time": window["crouching"].sum()/len(window),
             "approach_time": window["approach"].sum()/len(window)}
 
-if __name__ == "__main__":
+
     """
     Script to run behavior annotation pipeline on all trials in experiment data.
     
