@@ -5,6 +5,9 @@ visualizations**/
 plots/
 processed_data/
 annotated_data/
-*.ipynb
+pipeline.ipynb
+toolbox_notebook.ipynb
+analysis_notebook.ipynb
+correlation_USV_approach.ipynb
 *_data/
 *paths/
