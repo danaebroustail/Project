@@ -38,7 +38,6 @@ class BehaviourFeatureExtractor:
         self.time_col = self.DLC_cols['time']
         self.frame_index_col = self.DLC_cols['frame']
         self.frame_rate = self.config['frame_rate_dlc']
-        self.minimum_distance_to_nest = self.config['minimum_distance_to_nest']
         self.likelihood_threshold = self.config['likelihood_threshold']
 
     def compute_average_coordinates(self, df_DLC, parts_list, average_col_name):
@@ -93,7 +92,7 @@ class BehaviourFeatureExtractor:
 
         return df_DLC.loc[mask, :], mask
     
-    def process_trial(self, trial_df_DLC, df_summary, trial_num, interpolate_low_likelihoods = True):
+    def process_trial(self, trial_df_DLC, df_summary, trial_num, interpolate_low_likelihoods = True, show_DBSCAN_plot = True):
             """
             Processes a trial DataFrame by computing the speed, distance to pup, and head angle to pup
 
@@ -126,7 +125,7 @@ class BehaviourFeatureExtractor:
                                             speed_col = self.DLC_behaviour_cols["mouse_speed"])
             # denoising pup coordinates
             print("----> Denoising pup coordinates")
-            trial_DLC, pup_dict = self.track_pup_coordinates_trial(trial_DLC, df_summary, trial_num)
+            trial_DLC, pup_dict = self.track_pup_coordinates_trial(trial_DLC, df_summary, trial_num, show_plot=show_DBSCAN_plot)
             print("** Check ** NaN counts after denoising: ", trial_DLC[self.DLC_cols["pup"]["x"]].isna().sum())
 
             print("----> Recomputing distance to pup")
@@ -241,7 +240,6 @@ class BehaviourFeatureExtractor:
             y (str, optional): Column name for the y-coordinate. Default is "msTop_y".
             nest_coord_x (str, optional): Column name for the x-coordinate of the nest center. Default is "centerNest_x".
             nest_coord_y (str, optional): Column name for the y-coordinate of the nest center. Default is "centerNest_y".
-            minimum_distance_to_nest (float, optional): Minimum distance to the nest to consider the coordinates as in the nest. Default is 40.
         
         Returns:
             pd.DataFrame: DataFrame with an additional column indicating if the coordinates are in the nest.
@@ -252,7 +250,7 @@ class BehaviourFeatureExtractor:
 
         return df_dlc
     
-    def filter_low_likelihoods_and_interpolate(self, df_DLC, body_parts_dict, interpolation_method = 'time', threshold=0.8):
+    def filter_low_likelihoods_and_interpolate(self, df_DLC, body_parts_dict, interpolation_method = 'time', threshold=0.7):
         """
         Filter out rows with low likelihoods (when mouse is outside of nest) and interpolate the missing values.
 
@@ -419,7 +417,7 @@ class BehaviourFeatureExtractor:
 
             # label likelihood 0 for points with speed > threshold_speed_pup_cm
             mask = (trial_dlc[f"{pup_col}_speed_cm"] > threshold_speed_pup_cm)
-            initially_high_likelihood = (trial_dlc[f"{pup_col}_likelihood"] > 0.7) & mask
+            initially_high_likelihood = (trial_dlc[f"{pup_col}_likelihood"] > self.likelihood_threshold) & mask
 
             print(f"Number of implausible speed measurements for {pup_col}: {mask.sum()}, initially high likelihood: {initially_high_likelihood.sum()}")
             trial_dlc.loc[mask, f"{pup_col}_likelihood"] = 0
@@ -453,7 +451,7 @@ class BehaviourFeatureExtractor:
                     (trial_dlc[f"{pup_col}_y"] < pup_disp_bounds["ymin"]) | (trial_dlc[f"{pup_col}_y"] > pup_disp_bounds["ymax"])
 
             implausible_coords = pre_pickup_times & out_of_bounds # whenever pup is out of pup displacement bounds before the pickup time
-            initial_high_likelihood = (trial_dlc[f"{pup_col}_likelihood"] > 0.7) & implausible_coords
+            initial_high_likelihood = (trial_dlc[f"{pup_col}_likelihood"] > self.likelihood_threshold) & implausible_coords
             print(f"Number of out of bounds coords before pickup for {pup_col}: {implausible_coords.sum()}, initially high likelihood: {initial_high_likelihood.sum()}")
             trial_dlc.loc[implausible_coords, f"{pup_col}_likelihood"] = 0
 
@@ -465,7 +463,7 @@ class BehaviourFeatureExtractor:
         # label implausible pup coords with likelihood < threshold_likelihood_pup
 
         # ---- 1. outlier detection among the three coordinates
-        # could you do a regex string matching for the format distance_pupX_pupY where X, Y are alphabetical characters?
+        # regex string matching for the format distance_pupX_pupY where X, Y are alphabetical characters
         distance_cols = [col for col in trial_dlc.columns if re.match(r"distance_pup[A-Za-z]_pup[A-Za-z]_cm", col)]
         # print("Distance cols -->", distance_cols)
 
@@ -527,7 +525,10 @@ class BehaviourFeatureExtractor:
 
         return trial_dlc
 
-    def detect_pup_clusters(self, trial_dlc, df_summary, trial_num, threshold_likelihood_pup = 0.7, show_plot=False):
+    def detect_pup_clusters(self, trial_dlc, df_summary, trial_num,
+                            threshold_likelihood_pup = 0.7, 
+                            DBSCAN_eps = 7, DBSCAN_min_samples = 7,
+                            show_plot=False):
 
         # filter out pup coordinates with likelihood < threshold_likelihood_pup, set x, y, time_seconds
         pup_x_col = self.DLC_cols["pup"]["x"]
@@ -559,7 +560,8 @@ class BehaviourFeatureExtractor:
             pup_coords = pup_coords[[pup_x_col, pup_y_col, time_seconds_col]]
 
             ## cluster the pup coordinates
-            clustered_pup_coords = self.cluster_pup_positions(pup_coords)
+            clustered_pup_coords = self.cluster_pup_positions(pup_coords, eps=DBSCAN_eps,
+                                    min_samples=DBSCAN_min_samples, show_plot=show_plot)
 
         ## reassign the pup_x, pup_y, time_seconds, cluster_label based on the time_seconds
         trial_dlc = trial_dlc.merge(clustered_pup_coords[[time_seconds_col,
@@ -1007,7 +1009,7 @@ class BehaviourFeatureExtractor:
         #print("Number of valid pup coords: ", len(valid_info))
         return x_avg, y_avg, likelihood_avg
      
-    def track_pup_coordinates_trial(self, trial_dlc, df_summary, trial_num):
+    def track_pup_coordinates_trial(self, trial_dlc, df_summary, trial_num, show_plot=True):
         """
         Tracks the coordinates of the pup in the trial.
         """
@@ -1019,22 +1021,24 @@ class BehaviourFeatureExtractor:
         trial_dlc = self.compute_distances_intra_coords(trial_dlc)
 
         ######## 2. filter out implausible pup coordinates
-        trial_dlc = self.filter_intra_pup_coords(trial_dlc, threshold_intra_distance_pup_cm=2.5)
+        threshold_intra_distance_pup_cm = self.config["threshold_intra_distance_pup_cm"]
+        trial_dlc = self.filter_intra_pup_coords(trial_dlc, threshold_intra_distance_pup_cm=threshold_intra_distance_pup_cm)
 
         print("\nAfter intra pup filter:")
         for col in ["pupA_likelihood", "pupB_likelihood", "pupC_likelihood"]:
             print(f"Zeros in {col}: {(trial_dlc[col] == 0).sum()}")
 
         ######## 3. filter out implausible pup speeds
+        threshold_speed_pup_cm = self.config["threshold_speed_pup_cm"]
         trial_dlc = self.filter_speed_pup(trial_dlc,
-                                        threshold_speed_pup_cm = 5)
+                                        threshold_speed_pup_cm = threshold_speed_pup_cm)
         print("\nAfter speed filter:")
         for col in ["pupA_likelihood", "pupB_likelihood", "pupC_likelihood"]:
             print(f"Zeros in {col}: {(trial_dlc[col] == 0).sum()}")
 
         ######## 4. recompute the pup average
         pup_coords = { key:values for key, values in self.config["DLC_columns"].items() if key.startswith("pup") and len(key) == 4}
-        trial_dlc[['pup_x','pup_y', 'pup_likelihood']] = trial_dlc.apply(lambda row: self.compute_pup_average(row, threshold_likelihood_pup = 0.7), axis = 1, result_type = 'expand')
+        trial_dlc[['pup_x','pup_y', 'pup_likelihood']] = trial_dlc.apply(lambda row: self.compute_pup_average(row, threshold_likelihood_pup = self.likelihood_threshold), axis = 1, result_type = 'expand')
         # count number of NaNs in pup_average
         print(f"Number of NaNs in pup_average: {trial_dlc['pup_x'].isna().sum()}")
 
@@ -1048,17 +1052,25 @@ class BehaviourFeatureExtractor:
                                 skip_average = True,
                                 df_summary = df_summary, 
                                 df_dlc = trial_dlc,
-                                path_dir = None,  
+                                path_dir = f"plots/pup_trajectory_pre_filter/{ms_id}",  
                                 BF_instance = self,
                                 BF_config = self.config,
-                                threshold_likelihood_pup = 0.7)
+                                threshold_likelihood_pup = self.likelihood_threshold)
 
 
         ######## 6. detect pup clusters
-        trial_dlc = self.detect_pup_clusters(trial_dlc, df_summary, trial_num, threshold_likelihood_pup = 0.7, show_plot=True)
+        trial_dlc = self.detect_pup_clusters(trial_dlc, df_summary, trial_num,
+                                threshold_likelihood_pup = self.likelihood_threshold,
+                                DBSCAN_eps = self.config["DBSCAN_eps"],
+                                DBSCAN_min_samples = self.config["DBSCAN_min_samples"],
+                                show_plot=show_plot)
         
         ######## 7. filter out implausible pup coordinates (at this point NaNs will be added into pup_x, pup_y)
-        pup_dict, trial_dlc = self.process_pup_clusters(trial_dlc, df_summary, trial_num)
+        pup_dict, trial_dlc = self.process_pup_clusters(trial_dlc, df_summary, trial_num,
+                                speed_threshold_cms=self.config["speed_threshold_cms"],
+                                time_overlap_tolerance=self.config["time_overlap_tolerance"],
+                                distance_between_clusters_cm=self.config["distance_between_clusters_cm"],
+                                distance_to_pup_box_cm=self.config["distance_to_pup_box_cm"])
 
         # pprint.pprint(pup_dict)
 
@@ -1073,7 +1085,7 @@ class BehaviourFeatureExtractor:
                             path_dir = f"plots/pup_trajectory_transformed/{ms_id}",  
                             BF_instance = self,
                             BF_config = self.config,
-                            threshold_likelihood_pup = 0.7)
+                            threshold_likelihood_pup = self.likelihood_threshold)
 
         return trial_dlc, pup_dict
     
@@ -1187,8 +1199,8 @@ class BehaviourFeatureExtractor:
         coordinates_cols = [self.DLC_cols["mouse_position"]["likelihood"],
                             self.DLC_cols["head_position"]["likelihood"], 
                             self.DLC_cols["pup"]["likelihood"]]
-        trial_num_col = [self.DLC_summary_cols["trial_num"]] #+ ["cluster_label"]
-        behavioural_cols = list(self.DLC_behaviour_cols.values()) #+ ["cluster_label"]
+        trial_num_col = [self.DLC_summary_cols["trial_num"]] 
+        behavioural_cols = list(self.DLC_behaviour_cols.values())
 
         columns = coordinates_cols + behavioural_cols + trial_num_col
 
@@ -1453,7 +1465,7 @@ def visualize_pup_trajectory(mouse_id, day, trial_num,
                 s = 30,
                 alpha = 0.4,
                 zorder = 7,
-                color = "green", label = "pup_ABC")
+                color = "green", label = "Pup average coordinate")
     
     # add a red cross if likelihood is below threshold_likelihood_pup
     trial_dlc.loc[mask].plot(x = "pup_y",
@@ -1465,24 +1477,7 @@ def visualize_pup_trajectory(mouse_id, day, trial_num,
                             s = 30,
                             color = "red",
                             zorder = 5,
-                            label = f"pup_low_likelihood < {threshold_likelihood_pup}")
-    
-    trial_dlc.iloc[0:1].plot(x = "pup_y", y = "pup_x",
-                        kind = "scatter",
-                        marker = "*",
-                        alpha = 1.,
-                        s = 200,
-                        edgecolors='black',
-                        ax = ax,
-                        color = "cyan", label = "start",zorder = 10)
-    trial_dlc.iloc[-1:].plot(x = "pup_y", y = "pup_x",
-                            kind = "scatter",
-                            marker = "*",
-                            alpha = 1.,
-                            s = 200,
-                            edgecolors='black',
-                            ax = ax,
-                            color = "green", label = "end", zorder = 10)
+                            label = f"Pup low DLC likelihood coordinates < {threshold_likelihood_pup}")
         
     # set x and y labels
     ax.set_xlabel("pup y")
