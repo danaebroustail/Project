@@ -142,20 +142,39 @@
 
 "number_of_frames_per_bout": 3,
 "frame_rate_dlc": 30,
-"frame_rate_avisoft": 500000,
 "pixels_to_cm_ratio": 10.42,
 "frame_index_to_drop": 150,
 "dlc_file_tags": ["resnet50", "dlc", "shuffle", "oct"],
-"minimum_distance_to_nest": 40,
+
+"threshold_likelihood_pup": 0.7,
 "likelihood_threshold": 0.7,
+
+"DBSCAN_eps": 7,
+"DBSCAN_min_samples": 7,
+
 "distance_between_clusters_cm": 5,
+
 "distance_to_pup_box_cm": 10,
 "speed_threshold_cms": 25,
 "time_overlap_tolerance": 0.3,
-"threshold_likelihood_pup": 0.7,
-"threshold_intra_distance_pup_cm": 10,
+
+"threshold_intra_distance_pup_cm": 2.5,
 "threshold_speed_pup_cm": 5,
+
 "threshold_approach_angle_degrees": 90,
 "threshold_approach_speed_cms": -0.1,
+
+"threshold_crouching_distance_pup_cm": 2,
+"threshold_crouching_speed_cms": 5,
+
+"threshold_active_interaction_distance_head_pup_cm": 2,
+"threshold_active_interaction_speed_cms": 5,
+
+"threshold_duration_state_secs": 0.7,
+"threshold_speed_walking_cms": 5,
+"threshold_speed_still_cms": 1,
+
+"threshold_distance_to_pup_for_pickup_cm": 5,
+
 "pick_up_time_tolerance_secs": 0.03
 }
