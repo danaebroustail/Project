@@ -94,7 +94,6 @@ class BehaviourAnnotator:
         self.frame_index_col = self.DLC_cols['frame']
 
         self.frame_rate = self.config['frame_rate_dlc']
-        self.minimum_distance_to_nest = self.config['minimum_distance_to_nest']
         self.likelihood_threshold = self.config['likelihood_threshold']
         self.states = self.config['Behavioral_states']
         self.single_event_states = self.config['single_event_states']
