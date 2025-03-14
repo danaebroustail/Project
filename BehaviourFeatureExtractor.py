@@ -1091,7 +1091,7 @@ class BehaviourFeatureExtractor:
     
     #### Process the DLC data ####
     
-    def process_DLC(self, df_DLC, df_summary, interpolate_low_likelihoods = True):
+    def process_DLC(self, df_DLC, df_summary, interpolate_low_likelihoods = True, processed_data_dir = "processed_data"):
         """
         Extracts base parameters such as speed, distance to pup, and head angle to pup for each trial 
         from the given DataFrame. Updates a dictionary mapping trial number to the extracted trial data.
@@ -1106,27 +1106,13 @@ class BehaviourFeatureExtractor:
         trials_dict (dict): A dictionary containing the extracted trial data for each trial.
         """ 
 
-        df_DLC = df_DLC.copy()
-        modified_df_DLC = df_DLC.copy()
+        df_DLC, modified_df_DLC = df_DLC.copy(), df_DLC.copy()
 
         modified_df_DLC = self.check_and_insert_processed_columns(modified_df_DLC)
         original_df_DLC = self.check_and_insert_processed_columns(df_DLC.copy())
 
-        # print("** Check ** original_df_DLC columns:", original_df_DLC.columns)
-        # print("** Check ** original_df_DLC NaN counts:", original_df_DLC["pup_x"].isna().sum())
-
-        # print("** Check ** modified_df_DLC columns:", modified_df_DLC.columns)
-        # print("** Check ** modified_df_DLC NaN counts:", modified_df_DLC["pup_x"].isna().sum())
-
         trials_dict = {}
         trial_nums = df_summary[self.DLC_summary_cols["trial_num"]]
-
-        relevant_cols = list(self.DLC_behaviour_cols.values())
-        # add the new columns to the modified_df_DLC    
-        # for col in relevant_cols:
-        #     if col not in modified_df_DLC.columns:
-        #         print(f"** ADDED NEW COLUMN ** column {col} not in modified_df_DLC")
-        #         modified_df_DLC[col] = np.nan
 
         # iterate over each trial
         for trial_num in  trial_nums:
@@ -1136,35 +1122,23 @@ class BehaviourFeatureExtractor:
                 
                 trials_dict[trial_num] = trial_DLC #update the dictionary with the trial data
                 print("** Check ** trial_DLC NaN counts:", trial_DLC["pup_x"].isna().sum())
-                # print("** Check ** trial_DLC columns:", trial_DLC.columns)
-                # print("Preview first three rows of trial_DLC:")
-                # print(trial_DLC[["pup_x", "pup_y", "pup_likelihood", "cluster_label", "head_angle_to_pup_degrees", "distance_head_to_pup"]].head(3))
-                # print("Indices of the first three rows in trial_DLC:", trial_DLC.index.values[:3])
-
+                
                 if "cluster_label" not in trial_DLC.columns:
                     print("** ADDED NEW COLUMN ** column cluster_label not in trial_DLC")
                     modified_df_DLC["cluster_label"] = np.nan
 
-                # modified_df_DLC.loc[mask_DLC, col] = trial_DLC[col]
-                # print(f"** ADDED COLUMN ** column {col} added to modified_df_DLC")
-
                 # Then update the values using loc
                 modified_df_DLC.loc[mask_DLC, modified_df_DLC.columns] = trial_DLC[modified_df_DLC.columns].values
-                #print("** Check ** modified_df_DLC columns:", modified_df_DLC.columns)
                 print("** Check ** modified_df_DLC NaN counts:", modified_df_DLC[mask_DLC]["pup_x"].isna().sum())
-                # print("** Check ** modified_df_DLC NaN counts TOTAL:", modified_df_DLC["pup_x"].isna().sum())
-
-                # print("Preview first three rows of trial in modified_df_DLC:")
-                # print(modified_df_DLC.loc[mask_DLC][["pup_x", "pup_y", "pup_likelihood", "cluster_label", "head_angle_to_pup_degrees", "distance_head_to_pup"]].head(3)) 
-
+                
                 # export the pup_location_dict as a json file, export only the start_time, end_time, and cluster_label of the clusters, and save it in the same directory as the trial_DLC
                 ms_id = df_summary[self.DLC_summary_cols["animal_id"]].values[0]
                 d = df_summary[self.DLC_summary_cols["day"]].values[0]
 
                 # create the directory if it doesn't exist
-                os.makedirs(f"processed_data/{ms_id}/{d}/trials/", exist_ok=True)
+                os.makedirs(f"{processed_data_dir}/{ms_id}/{d}/trials/", exist_ok=True)
 
-                with open(f"processed_data/{ms_id}/{d}/trials/{ms_id}_{d}_trial{trial_num}_pup_location_dict.json", "w") as f:
+                with open(f"{processed_data_dir}/{ms_id}/{d}/trials/{ms_id}_{d}_trial{trial_num}_pup_location_dict.json", "w") as f:
                     # export only the start_time, end_time, and cluster_label of the clusters
                     pup_dict_to_export = {key: {"start_time": value["start_time"], "end_time": value["end_time"], "cluster_label": value["cluster_label"]} for key, value in pup_dict.items()}
                     json.dump(pup_dict_to_export, f)
