@@ -32,6 +32,8 @@ class VocalFeatureExtractor:
         self.frame_index_col = self.DLC_cols['frame']
         self.frame_rate = self.config['frame_rate_dlc']
 
+        self.overlap_USV_counts = 0
+
         self.BF = BehaviourFeatureExtractor(path_to_config_file)
 
     def extract_trial_USV(self, df_USV, df_summary, trial_num):
@@ -70,13 +72,9 @@ class VocalFeatureExtractor:
             row = trial_USV.iloc[i]
             begin_time_usv = row['BeginTime_s_']
             end_time_usv = row['EndTime_s_']
-            # duration = row['CallLength_s_']
 
             begin_time_usv_frame = convert_seconds_to_frame(begin_time_usv, self.frame_rate)
             end_time_usv_frame = convert_seconds_to_frame(end_time_usv, self.frame_rate)
-
-            # print("Begin time: {}, End time: {}, Duration: {}".format(begin_time_usv, end_time_usv, duration))
-            # print("Begin time frame: {}, End time frame: {}".format(begin_time_usv_frame, end_time_usv_frame))
 
             bout_window = trial_DLC[(trial_DLC[self.frame_index_col ] >= begin_time_usv_frame) & (trial_DLC[self.frame_index_col] <= end_time_usv_frame)][bout_window_col].values
 
@@ -86,6 +84,7 @@ class VocalFeatureExtractor:
                 most_frequent_index = most_frequent(bout_window)
                 # print("most_frequent_index = ", most_frequent_index)
                 # print("index = ", i)
+                self.overlap_USV_counts += 1
                 trial_USV[bout_window_col].iloc[i] = most_frequent_index
 
         return trial_USV
@@ -185,8 +184,6 @@ class VocalFeatureExtractor:
         # insert and check if required output columns are present
         df_DLC, df_USV = self.check_and_insert_columns_USV(df_DLC, df_USV)
 
-        #print("** VocalFeatureExtractor ** df_DLC columns:", df_DLC.columns)
-
         # iterate over all trials
         for trial_num in df_summary[self.DLC_summary_cols["trial_num"]].unique():
 
@@ -198,13 +195,9 @@ class VocalFeatureExtractor:
 
             trial_DLC, trial_USV = self.process_trial_USV(trial_USV, trial_DLC)
 
-            #print("** VocalFeatureExtractor ** trial_DLC columns:", trial_DLC.columns)
-
             # update the original dataframes
             df_USV.update(trial_USV)
             df_DLC.update(trial_DLC)
-
-            #print("** VocalFeatureExtractor ** df_DLC columns:", df_DLC.columns)
 
             trials[trial_num]["dlc_data"] = trial_DLC
             trials[trial_num]["usv_data"] = trial_USV

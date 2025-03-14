@@ -1072,8 +1072,6 @@ class BehaviourFeatureExtractor:
                                 distance_between_clusters_cm=self.config["distance_between_clusters_cm"],
                                 distance_to_pup_box_cm=self.config["distance_to_pup_box_cm"])
 
-        # pprint.pprint(pup_dict)
-
         ######## 8. re-visualize the pup trajectory
         visualize_pup_trajectory(mouse_id = ms_id, day = d, trial_num = trial_num,
                             cmap = "magma",
@@ -1091,7 +1089,7 @@ class BehaviourFeatureExtractor:
     
     #### Process the DLC data ####
     
-    def process_DLC(self, df_DLC, df_summary, interpolate_low_likelihoods = True, processed_data_dir = "processed_data"):
+    def process_DLC(self, df_DLC, df_summary, interpolate_low_likelihoods = True, processed_data_dir = "processed_data", show_plot = False):
         """
         Extracts base parameters such as speed, distance to pup, and head angle to pup for each trial 
         from the given DataFrame. Updates a dictionary mapping trial number to the extracted trial data.
@@ -1099,6 +1097,10 @@ class BehaviourFeatureExtractor:
         df_DLC (pd.DataFrame): DataFrame containing DeepLabCut (DLC) tracking data with a 'frame_index' column.
         df_summary (pd.DataFrame): DataFrame containing summary information for each trial, including 
                                 'BehavRecdTrialEndSecs' and 'PupDispDropSecs' columns.
+        interpolate_low_likelihoods (bool): Whether to interpolate low likelihoods.
+        processed_data_dir (str): Directory to save the processed data.
+        show_DBSCAN_plot (bool): Whether to show the plot of the DBSCAN clustering.
+
         Returns:
         pd.DataFrame: Updated DataFrame with additional columns for speed, 
                     distance to pup and head angle to pup.
@@ -1118,10 +1120,9 @@ class BehaviourFeatureExtractor:
         for trial_num in  trial_nums:
 
                 trial_DLC, mask_DLC = self.extract_trial_from_DLC(original_df_DLC, df_summary, trial_num)
-                trial_DLC, pup_dict = self.process_trial(trial_DLC, df_summary, trial_num, interpolate_low_likelihoods = interpolate_low_likelihoods)
+                trial_DLC, pup_dict = self.process_trial(trial_DLC, df_summary, trial_num, interpolate_low_likelihoods = interpolate_low_likelihoods, show_DBSCAN_plot = show_plot)
                 
-                trials_dict[trial_num] = trial_DLC #update the dictionary with the trial data
-                print("** Check ** trial_DLC NaN counts:", trial_DLC["pup_x"].isna().sum())
+                trials_dict[trial_num] = trial_DLC # update the dictionary with the trial data
                 
                 if "cluster_label" not in trial_DLC.columns:
                     print("** ADDED NEW COLUMN ** column cluster_label not in trial_DLC")
@@ -1129,7 +1130,6 @@ class BehaviourFeatureExtractor:
 
                 # Then update the values using loc
                 modified_df_DLC.loc[mask_DLC, modified_df_DLC.columns] = trial_DLC[modified_df_DLC.columns].values
-                print("** Check ** modified_df_DLC NaN counts:", modified_df_DLC[mask_DLC]["pup_x"].isna().sum())
                 
                 # export the pup_location_dict as a json file, export only the start_time, end_time, and cluster_label of the clusters, and save it in the same directory as the trial_DLC
                 ms_id = df_summary[self.DLC_summary_cols["animal_id"]].values[0]
