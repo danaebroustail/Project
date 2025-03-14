@@ -25,6 +25,8 @@ class DataLoader:
         df_dict, video_dict = self.find_paths_main(data_dir)
         self.df_dict = df_dict
         self.video_dict = video_dict
+        self.USV_overlap_counts = 0
+        self.total_USV_counts = 0
 
     def find_paths_main(self, data_dir):
         """
@@ -67,7 +69,7 @@ class DataLoader:
             path_item = os.path.join(path_dir, item)
             
             if os.path.isdir(path_item):
-                #print(f"Found a directory at path {path_dir}")
+                print(f"Found a directory at path {path_dir}")
                 self.find_paths_helper(path_item, d, d_video)
 
             # videos
@@ -171,6 +173,7 @@ class DataLoader:
                 df = pd.read_csv(path)
 
         elif path.endswith('.xlsx'):
+            print(path)
             df = pd.read_excel(path)
 
         return df
@@ -262,7 +265,7 @@ class DataLoader:
     def collect_and_process_experiment_data(self, mouse_ids, days, BF_instance, VF_instance, processed_data_dir = None, export = False):
 
         experiment_data = {}
-
+        total_USV_counts = 0
         for mouse_id in mouse_ids:
             experiment_data[mouse_id] = {}
             for day in days:
@@ -281,14 +284,22 @@ class DataLoader:
                 df_summary = experiment_data[mouse_id][day]["Behavior"]["df_summary"].copy()
 
                 # align USV data to DLC data
-                df_DLC_processed, _ = BF_instance.process_DLC(df_DLC.copy(), df_summary)
+                df_DLC_processed, _ = BF_instance.process_DLC(df_DLC.copy(), df_summary, processed_data_dir = processed_data_dir)
                 trials, df_DLC, df_USV = VF_instance.process_USV(df_Avi, df_summary, df_DLC_processed)
 
+                print("Mouse - ", mouse_id, "Day - ", day, "VF_instance.overlap_USV_counts = ", VF_instance.overlap_USV_counts)
+                print("Mouse - ", mouse_id, "Day - ", day, "df_DLC['call_number'].sum() = ", df_DLC["call_number"].sum())
+                
+                self.USV_overlap_counts += VF_instance.overlap_USV_counts
+                self.total_USV_counts += df_DLC["call_number"].sum()
+                
                 # print("** Exporting ** df_DLC_processed columns:", df_DLC.columns)
 
                 experiment_data[mouse_id][day]["trials"] =  trials
 
                 if export and processed_data_dir is not None:
+
+                    os.makedirs(f"{processed_data_dir}/{mouse_id}/{day}/trials/", exist_ok = True)
                      # export the summary data
                     df_summary = experiment_data[mouse_id][day]["Behavior"]["df_summary"]
                     df_summary.to_csv(f"{processed_data_dir}/{mouse_id}/{day}/BehavSummary_{mouse_id}_{day}.csv", index = False)
@@ -302,6 +313,9 @@ class DataLoader:
                         # export the processed DLC data
                         dlc_data.to_csv(f"{processed_data_dir}/{mouse_id}/{day}/trials/trial{trial_num}_DLC_processed_{mouse_id}_{day}.csv", index = False)
 
+        print("Total USV counts:", self.total_USV_counts)
+        print("VF_instance.overlap_USV_counts = ", self.USV_overlap_counts)
+        print("Ratio:", self.USV_overlap_counts / self.total_USV_counts)
         return experiment_data
 
 
