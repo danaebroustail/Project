@@ -92,15 +92,33 @@ class BehaviourFeatureExtractor:
 
         return df_DLC.loc[mask, :], mask
     
-    def process_trial(self, trial_df_DLC, df_summary, trial_num, interpolate_low_likelihoods = True, show_DBSCAN_plot = True):
+    def process_trial(self, trial_df_DLC, df_summary, trial_num, interpolate_low_likelihoods = True, show_DBSCAN_plot = True, plot_dir = "plots"):
             """
-            Processes a trial DataFrame by computing the speed, distance to pup, and head angle to pup
+            Processes a trial DataFrame by interpolating low likelihood values for mouse coordinates, denoising pup coordinates and computing distance to pup and head angle to pup.
+            Defined at the level of a single trial.
+            Executes the following steps:
+                0. check and insert processed columns
+                1. interpolating low likelihood values for mouse coordinates
+                2. computing mouse speed
+                3. denoising pup coordinates
+                4. computing distance to pup
+                5. computing head angle to pup
+                6. adding trial number to the dataframe
 
             Parameters:
-                - trial_df_DLC (pd.DataFrame): DataFrame containing DeepLabCut (DLC) tracking data for a single trial.
-                - trial_num (int): Trial number.
-                - interpolate_low_likelihoods (bool, optional): Whether to interpolate low likelihood values. Default is True.
-                        
+            -----------
+                trial_df_DLC : pandas.DataFrame
+                    DataFrame containing DeepLabCut (DLC) tracking data for a single trial.
+                df_summary : pandas.DataFrame
+                    DataFrame containing summary data for a single trial.
+                trial_num : int
+                    Trial number.
+                interpolate_low_likelihoods : bool, optional
+                    Whether to interpolate low likelihood values. Default is True.
+                show_DBSCAN_plot : bool, optional
+                    Whether to show the plot of the DBSCAN clustering. Default is True.
+                plot_dir : str, optional
+                    Directory to save the plot of the DBSCAN clustering. Default is "plots".
             """
 
             trial_DLC = trial_df_DLC.copy()
@@ -125,7 +143,11 @@ class BehaviourFeatureExtractor:
                                             speed_col = self.DLC_behaviour_cols["mouse_speed"])
             # denoising pup coordinates
             print("----> Denoising pup coordinates")
-            trial_DLC, pup_dict = self.track_pup_coordinates_trial(trial_DLC, df_summary, trial_num, show_plot=show_DBSCAN_plot)
+            if show_DBSCAN_plot and plot_dir:
+                os.makedirs(plot_dir, exist_ok=True)
+            trial_DLC, pup_dict = self.track_pup_coordinates_trial(trial_DLC, df_summary, trial_num, 
+                                                                    show_DBSCAN_plot=show_DBSCAN_plot,
+                                                                    plot_dir=plot_dir)
             print("** Check ** NaN counts after denoising: ", trial_DLC[self.DLC_cols["pup"]["x"]].isna().sum())
 
             print("----> Recomputing distance to pup")
@@ -1009,13 +1031,56 @@ class BehaviourFeatureExtractor:
         #print("Number of valid pup coords: ", len(valid_info))
         return x_avg, y_avg, likelihood_avg
      
-    def track_pup_coordinates_trial(self, trial_dlc, df_summary, trial_num, show_plot=True):
+    ### main function pup tracking ###
+
+    def track_pup_coordinates_trial(self, trial_dlc, df_summary, trial_num, plot_dir = "plots", show_DBSCAN_plot=True):
         """
         Tracks the coordinates of the pup in the trial.
+        Defined at the level of a single trial.
+        Executes the following steps:
+            0. visualize the pup trajectory (raw data)
+            1. compute distances between pup coordinates
+            2. filter out implausible pup coordinates
+            3. filter out implausible pup speeds
+            4. recompute the pup average
+            5. visualize the pup trajectory (after filtering)
+            6. detect pup clusters (using DBSCAN)
+            7. process the pup clusters
+            8. visualize the final pup trajectory
+
+        Parameters:
+            trial_dlc (pd.DataFrame): DataFrame containing the trial data with the pup coordinates
+            df_summary (pd.DataFrame): DataFrame containing the summary information for the trial
+            trial_num (int): The trial number to process
+            plot_dir (str): The directory to save the plots
+            show_DBSCAN_plot (bool): Whether to show the DBSCAN clustering plots
+        Returns:
+            trial_dlc (pd.DataFrame): DataFrame containing the trial data with the pup coordinates
+            pup_dict (dict): Dictionary containing the pup coordinates for each trial
         """
+
+        def print_zeros_in_likelihood(trial_dlc):
+            for col in ["pupA_likelihood", "pupB_likelihood", "pupC_likelihood"]:
+                print(f"Zeros in {col}: {(trial_dlc[col] == 0).sum()}")
+
+        ms_id, d = df_summary[self.DLC_summary_cols["animal_id"]].values[0], df_summary[self.DLC_summary_cols["day"]].values[0]
+
         print("Before filtering:")
-        for col in ["pupA_likelihood", "pupB_likelihood", "pupC_likelihood"]:
-            print(f"Zeros in {col}: {(trial_dlc[col] == 0).sum()}")
+        print_zeros_in_likelihood(trial_dlc)
+
+        ######## 0. visualize the pup trajectory (raw data)
+        if plot_dir:
+            os.makedirs(plot_dir, exist_ok=True)
+            visualize_pup_trajectory(mouse_id = ms_id, day = d, trial_num = trial_num,
+                                    cmap = "viridis",
+                                    trial_dlc = trial_dlc,
+                                    skip_average = True,
+                                    df_summary = df_summary, 
+                                    df_dlc = trial_dlc,
+                                    path_dir = f"{plot_dir}/pup_trajectory_raw/{ms_id}",  
+                                    BF_instance = self,
+                                    BF_config = self.config,
+                                    threshold_likelihood_pup = self.likelihood_threshold)
 
         ######## 1. compute distances between pup coordinates
         trial_dlc = self.compute_distances_intra_coords(trial_dlc)
@@ -1025,37 +1090,35 @@ class BehaviourFeatureExtractor:
         trial_dlc = self.filter_intra_pup_coords(trial_dlc, threshold_intra_distance_pup_cm=threshold_intra_distance_pup_cm)
 
         print("\nAfter intra pup filter:")
-        for col in ["pupA_likelihood", "pupB_likelihood", "pupC_likelihood"]:
-            print(f"Zeros in {col}: {(trial_dlc[col] == 0).sum()}")
+        print_zeros_in_likelihood(trial_dlc)
 
         ######## 3. filter out implausible pup speeds
         threshold_speed_pup_cm = self.config["threshold_speed_pup_cm"]
         trial_dlc = self.filter_speed_pup(trial_dlc,
                                         threshold_speed_pup_cm = threshold_speed_pup_cm)
+        
         print("\nAfter speed filter:")
-        for col in ["pupA_likelihood", "pupB_likelihood", "pupC_likelihood"]:
-            print(f"Zeros in {col}: {(trial_dlc[col] == 0).sum()}")
+        print_zeros_in_likelihood(trial_dlc)
 
         ######## 4. recompute the pup average
         pup_coords = { key:values for key, values in self.config["DLC_columns"].items() if key.startswith("pup") and len(key) == 4}
         trial_dlc[['pup_x','pup_y', 'pup_likelihood']] = trial_dlc.apply(lambda row: self.compute_pup_average(row, threshold_likelihood_pup = self.likelihood_threshold), axis = 1, result_type = 'expand')
+        
         # count number of NaNs in pup_average
         print(f"Number of NaNs in pup_average: {trial_dlc['pup_x'].isna().sum()}")
-
-        ms_id = df_summary[self.DLC_summary_cols["animal_id"]].values[0]
-        d = df_summary[self.DLC_summary_cols["day"]].values[0]
         
         ######## 5. visualize the pup trajectory
-        visualize_pup_trajectory(mouse_id = ms_id, day = d, trial_num = trial_num,
-                                cmap = "viridis",
-                                trial_dlc = trial_dlc,
-                                skip_average = True,
-                                df_summary = df_summary, 
-                                df_dlc = trial_dlc,
-                                path_dir = f"plots/pup_trajectory_pre_filter/{ms_id}",  
-                                BF_instance = self,
-                                BF_config = self.config,
-                                threshold_likelihood_pup = self.likelihood_threshold)
+        if plot_dir:
+            visualize_pup_trajectory(mouse_id = ms_id, day = d, trial_num = trial_num,
+                                    cmap = "viridis",
+                                    trial_dlc = trial_dlc,
+                                    skip_average = True,
+                                    df_summary = df_summary, 
+                                    df_dlc = trial_dlc,
+                                    path_dir = f"{plot_dir}/pup_trajectory_filtered/{ms_id}",  
+                                    BF_instance = self,
+                                    BF_config = self.config,
+                                    threshold_likelihood_pup = self.likelihood_threshold)
 
 
         ######## 6. detect pup clusters
@@ -1063,24 +1126,25 @@ class BehaviourFeatureExtractor:
                                 threshold_likelihood_pup = self.likelihood_threshold,
                                 DBSCAN_eps = self.config["DBSCAN_eps"],
                                 DBSCAN_min_samples = self.config["DBSCAN_min_samples"],
-                                show_plot=show_plot)
+                                show_plot=show_DBSCAN_plot)
         
-        ######## 7. filter out implausible pup coordinates (at this point NaNs will be added into pup_x, pup_y)
+        ######## 7. process the pup clusters (filter out implausible pup coordinates, and recompute the pup average)
         pup_dict, trial_dlc = self.process_pup_clusters(trial_dlc, df_summary, trial_num,
                                 speed_threshold_cms=self.config["speed_threshold_cms"],
                                 time_overlap_tolerance=self.config["time_overlap_tolerance"],
                                 distance_between_clusters_cm=self.config["distance_between_clusters_cm"],
                                 distance_to_pup_box_cm=self.config["distance_to_pup_box_cm"])
 
-        ######## 8. re-visualize the pup trajectory
-        visualize_pup_trajectory(mouse_id = ms_id, day = d, trial_num = trial_num,
+        ######## 8. re-visualize the final pup trajectory
+        if plot_dir:
+            visualize_pup_trajectory(mouse_id = ms_id, day = d, trial_num = trial_num,
                             cmap = "magma",
                             trial_dlc = trial_dlc,
                             pup_dict = pup_dict,
                             skip_average = True,
                             df_summary = df_summary, 
                             df_dlc = trial_dlc,
-                            path_dir = f"plots/pup_trajectory_transformed/{ms_id}",  
+                            path_dir = f"{plot_dir}/pup_trajectory_transformed/{ms_id}",  
                             BF_instance = self,
                             BF_config = self.config,
                             threshold_likelihood_pup = self.likelihood_threshold)
@@ -1089,19 +1153,31 @@ class BehaviourFeatureExtractor:
     
     #### Process the DLC data ####
     
-    def process_DLC(self, df_DLC, df_summary, interpolate_low_likelihoods = True, processed_data_dir = "processed_data", show_plot = False):
+    def process_DLC(self, df_DLC, df_summary, interpolate_low_likelihoods = True, 
+                    processed_data_dir = None, plot_dir = "plots", show_DBSCAN_plot = False):
         """
         Extracts base parameters such as speed, distance to pup, and head angle to pup for each trial 
-        from the given DataFrame. Updates a dictionary mapping trial number to the extracted trial data.
+        from a session-wise DLC dataframe. 
+        Defined at the level of a session.
+        Executes the following steps:
+            0. check and insert processed columns
+            1. extract trial data
+            2. process the trial data
+            3. export the processed data
+        Updates a dictionary mapping trial number to the extracted trial data.
+
         Parameters:
+        -----------
         df_DLC (pd.DataFrame): DataFrame containing DeepLabCut (DLC) tracking data with a 'frame_index' column.
         df_summary (pd.DataFrame): DataFrame containing summary information for each trial, including 
                                 'BehavRecdTrialEndSecs' and 'PupDispDropSecs' columns.
         interpolate_low_likelihoods (bool): Whether to interpolate low likelihoods.
         processed_data_dir (str): Directory to save the processed data.
         show_DBSCAN_plot (bool): Whether to show the plot of the DBSCAN clustering.
+        plot_dir (str): Directory to save the plots.
 
         Returns:
+        --------
         pd.DataFrame: Updated DataFrame with additional columns for speed, 
                     distance to pup and head angle to pup.
                     These columns have default NaN values for frames that don't belong to any trial.
@@ -1120,7 +1196,11 @@ class BehaviourFeatureExtractor:
         for trial_num in  trial_nums:
 
                 trial_DLC, mask_DLC = self.extract_trial_from_DLC(original_df_DLC, df_summary, trial_num)
-                trial_DLC, pup_dict = self.process_trial(trial_DLC, df_summary, trial_num, interpolate_low_likelihoods = interpolate_low_likelihoods, show_DBSCAN_plot = show_plot)
+                
+                trial_DLC, pup_dict = self.process_trial(trial_DLC, df_summary, trial_num, 
+                                                            plot_dir = plot_dir,
+                                                            interpolate_low_likelihoods = interpolate_low_likelihoods, 
+                                                            show_DBSCAN_plot = show_DBSCAN_plot)
                 
                 trials_dict[trial_num] = trial_DLC # update the dictionary with the trial data
                 
@@ -1135,13 +1215,14 @@ class BehaviourFeatureExtractor:
                 ms_id = df_summary[self.DLC_summary_cols["animal_id"]].values[0]
                 d = df_summary[self.DLC_summary_cols["day"]].values[0]
 
-                # create the directory if it doesn't exist
-                os.makedirs(f"{processed_data_dir}/{ms_id}/{d}/trials/", exist_ok=True)
+                if processed_data_dir is not None:
+                    # create the directory if it doesn't exist
+                    os.makedirs(f"{processed_data_dir}/{ms_id}/{d}/trials/", exist_ok=True)
 
-                with open(f"{processed_data_dir}/{ms_id}/{d}/trials/{ms_id}_{d}_trial{trial_num}_pup_location_dict.json", "w") as f:
-                    # export only the start_time, end_time, and cluster_label of the clusters
-                    pup_dict_to_export = {key: {"start_time": value["start_time"], "end_time": value["end_time"], "cluster_label": value["cluster_label"]} for key, value in pup_dict.items()}
-                    json.dump(pup_dict_to_export, f)
+                    with open(f"{processed_data_dir}/{ms_id}/{d}/trials/{ms_id}_{d}_trial{trial_num}_pup_location_dict.json", "w") as f:
+                        # export only the start_time, end_time, and cluster_label of the clusters
+                        pup_dict_to_export = {key: {"start_time": value["start_time"], "end_time": value["end_time"], "cluster_label": value["cluster_label"]} for key, value in pup_dict.items()}
+                        json.dump(pup_dict_to_export, f)
 
         return modified_df_DLC, trials_dict
     

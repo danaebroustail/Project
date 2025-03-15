@@ -331,7 +331,30 @@ class BehaviourAnnotator:
         return window
 
     def annotate_full_trial(self, trial_df, trial_num, df_summary, pup_locations): 
-        """Labels mouse behaviors (approach, crouching, active interaction) by iterating over all pup locations and labeling the behaviors in the time window before each pup location"""
+        """Labels mouse behaviors (approach, crouching, active interaction) and (carrying, pickup, drop).
+            Iterates over all pup locations and 
+            1) labels (carrying, pickup and drop) in the time window before each pup location.
+            2) labels (approach, crouching, active interaction) in the pup location time window.
+            Defined at the level of a single trial.
+           
+           Parameters:
+           -----------
+           trial_df : pandas DataFrame
+               DataFrame containing trial data
+           trial_num : int
+               Trial number
+           df_summary : pandas DataFrame
+               DataFrame containing summary data
+           pup_locations : dict
+               Dictionary containing pup locations
+
+           Returns:
+           --------
+           trial_df : pandas DataFrame
+               Annotated trial dataframe
+           pup_locations : dict
+               Updated pup locations
+            """
 
         def check_pickup_validity(trial_df, pup_locations, pup_loc_id):
             """Check if the pickup is valid by looking at the distance to the pup and the head angle to the pup"""
@@ -634,7 +657,7 @@ class BehaviourAnnotator:
             print(f" -> Window: {start_time_window} to {end_time_window}")
 
             pup_cluster_df = trial_df.loc[mask_window].copy()
-            annotated_cluster_df = self.label_pup_interaction_behaviors_trial(pup_cluster_df, trial_num, start_time_window, end_time_window, df_summary)
+            annotated_cluster_df = self.label_pup_interaction_behaviors_trial(pup_cluster_df, trial_num, start_time_window, end_time_window, df_summary, kernel_size=self.config["kernel_num_frames_smoothing"])
             trial_df.loc[mask_window, trial_df.columns] = annotated_cluster_df[trial_df.columns].values
             
             print("\n=====> After ALL edits:")
@@ -690,9 +713,41 @@ class BehaviourAnnotator:
         return trial_df
 
     def plot_behavioral_annotations(self, trial_df_annotated, df_summary, pup_locations, 
-                                    mouse_id, day, trial_num, start_time = None, end_time = None, add_USV_plot = False,
-                                    add_head_angle_to_pup_plot = False, export_plot = False, plot_dir = "full_annotation_plots"):
-        """Plots the labeled behaviors and USV data leading up to pup pickup"""
+                                    mouse_id, day, trial_num, plot_dir, start_time = None, end_time = None, add_USV_plot = False,
+                                    add_head_angle_to_pup_plot = False, export_plot = False):
+        """Plots the labeled behaviors and USV data leading up to pup pickup
+
+        Parameters:
+        -----------
+        trial_df_annotated : pandas DataFrame
+            DataFrame containing the annotated trial data
+        df_summary : pandas DataFrame
+            DataFrame containing the summary data
+        pup_locations : dict
+            Dictionary containing the pup locations
+        mouse_id : str
+            Mouse ID
+        day : str
+            Day
+        trial_num : int
+            Trial number
+        plot_dir : str
+            Directory to save the plot.
+        start_time : int
+            Start time (of the trial) to plot. Default is None, in which case the first time point of the trial is plotted.
+        end_time : int
+            End time (of the trial) to plot. Default is None, in which case the last time point of the trial is plotted.
+        add_USV_plot : bool
+            Whether to add the USV information to the plot. Default is False.
+        add_head_angle_to_pup_plot : bool
+            Whether to add the head angle to the plot. Default is False.
+        export_plot : bool
+            Whether to export the plot
+
+        Returns:
+        --------
+        None
+        """
 
         trial_pickup_time = get_pick_up_time(df_summary, trial_num,
                                 trial_num_col = self.DLC_summary_cols["trial_num"],
@@ -841,9 +896,8 @@ class BehaviourAnnotator:
         ax.set_title(f"{mouse_id} - {day} - Trial {trial_num} | Success was: {success} | Annotations from trial start at {trial_start_time_minutes} to end of trial at {trial_end_time_minutes}, pick up at {trial_pickup_time_minutes}")
         
         if export_plot:
-            os.makedirs(f"plots/{plot_dir}", exist_ok = True)
-            os.makedirs(f"plots/{plot_dir}/{mouse_id}/{day}", exist_ok = True)
-            path = f"plots/{plot_dir}/{mouse_id}/{day}/{mouse_id}_{day}_trial_{trial_num}.png"
+            os.makedirs(f"{plot_dir}/{mouse_id}/{day}", exist_ok = True)
+            path = f"{plot_dir}/{mouse_id}/{day}/{mouse_id}_{day}_trial_{trial_num}.png"
             plt.savefig(path)
             plt.show()
         else:
@@ -851,7 +905,10 @@ class BehaviourAnnotator:
 
     def export_trial(self, trial_df_annotated, pup_locations_annotated, df_summary,
                             mouse_id, day, trial_num, processed_data_dir = "annotated_data"):
-        
+        """
+        Exports the trial data.
+        Defined at the level of a single trial.
+        """
         os.makedirs(processed_data_dir, exist_ok = True)
         os.makedirs(f"{processed_data_dir}/{mouse_id}/{day}/trials/", exist_ok = True)
 
@@ -867,9 +924,57 @@ class BehaviourAnnotator:
             with open(path, 'w') as f:
                 json.dump(pup_locations_annotated, f, indent=4)
         
-    def run_pup_directed_behavior_annotation(self, mouse_id, day, trial_num,
+    def run_behavior_annotation(self, mouse_id, day, trial_num,
                                                 trial_df, df_summary, pup_locations,
-                                                processed_data_dir = "annotated_data", export = False):
+                                                processed_data_dir = "annotated_data", 
+                                                plot_dir = "plots",
+                                                add_USV_data = False,
+                                                export = False):
+
+        """
+        Runs behavior annotation.
+        Defined at the level of a single trial.
+        Executes the following steps:
+            1. create default columns (on trial_df)
+            2. mark existing times (on trial_df)
+            3. assign pick up and success types (on pup_location dictionary)
+            4. compute distances for consecutive pup locations (on pup_location dictionary)
+            5. annotates trial for pup directed behavior (carrying, pickup, drop, retrieval, approach, active_interaction, crouching) (on trial_df)
+            6. annotates trial for passive behavior (still, walking) (on trial_df)
+            7. resolves simultaneous labels (on trial_df)
+            8. export trial
+            9. plot behavioral annotations ()
+
+        Parameters:
+        -----------
+        mouse_id : str
+            Mouse ID
+        day : str
+            Day
+        trial_num : int
+            Trial number
+        trial_df : pandas DataFrame
+            DataFrame containing the trial data
+        df_summary : pandas DataFrame
+            DataFrame containing the summary data
+        pup_locations : dict
+            Dictionary containing the pup locations
+        processed_data_dir : str
+            Directory to save the processed data
+        plot_dir : str
+            Directory to save the plots
+        add_USV_data : bool
+            Whether to add the USV data to the plot
+        export : bool
+            Whether to export the trial
+
+        Returns:
+        --------
+        trial_df_annotated : pandas DataFrame
+            Annotated trial dataframe
+        pup_locations_annotated : dict
+            Updated pup locations dictionary
+        """
 
         print(f" ==== Example: {mouse_id} - {day} - {trial_num} ==== ")
 
@@ -909,17 +1014,57 @@ class BehaviourAnnotator:
 
         # 7. plot behavioral annotations
         print("===== * = * = 7.Plotting behavioral annotations = * = * ======")
-        self.plot_behavioral_annotations(trial_df_annotated_resolved, df_summary, pup_locations_annotated,
+        if plot_dir:
+            os.makedirs(plot_dir, exist_ok=True)
+            self.plot_behavioral_annotations(trial_df_annotated_resolved, df_summary, pup_locations_annotated,
                             mouse_id, day, trial_num,
-                            start_time = None, end_time = None, add_USV_plot = False, plot_dir = "full_resolved_annotation_plots", export_plot = True)
+                            start_time = None, end_time = None, 
+                            add_USV_plot = False, 
+                            plot_dir = f"{plot_dir}/full_resolved_annotation_plots", 
+                            export_plot = True)
 
+            if add_USV_data:
+                print("===== * = * = 8.Plotting USV data = * = * ======")
+                self.plot_behavioral_annotations(trial_df_annotated_resolved, df_summary, pup_locations_annotated,
+                            mouse_id, day, trial_num,
+                            start_time = None, end_time = None, 
+                            add_USV_plot = True, 
+                            plot_dir = f"{plot_dir}/usv_annotated_trials", 
+                            export_plot = True)
 
         return trial_df_annotated, pup_locations_annotated
 
-    def get_and_export_transition_paths_for_animal(self, processed_and_annotated_data, mouse_ids, days, export = False,
-                                                    transition_path_export_dir = "transition_paths",
-                                                    export_csv_dir = "annotated_cleaned_resolved_data",
-                                                    plot_export_dir = "full_cleaned_resolved_annotation_plots"): 
+    def get_and_export_transition_paths_for_animal(self, processed_and_annotated_data, mouse_ids, days, 
+                                             export = True,
+                                             plot_dir = "plots",
+                                             transition_path_export_dir = "transition_paths",
+                                             export_csv_dir = "annotated_cleaned_resolved_data"):
+        """
+        Gets and exports the transition paths for a list of animal IDs and session IDs (days).
+        Defined at the level of a group of mice and days.
+
+        Parameters:
+        -----------
+        processed_and_annotated_data : dict
+            Dictionary containing the processed and annotated data
+        mouse_ids : list
+            List of mouse IDs
+        days : list
+            List of days
+        export : bool
+            Whether to export the transition paths
+        plot_dir : str
+            Directory to save the plots
+        transition_path_export_dir : str
+            Directory to save the transition paths
+        export_csv_dir : str
+            Directory to save the processed and annotated trial files
+
+        Returns:
+        --------
+        transition_paths_dict : dict
+            Dictionary containing the transition paths
+        """
         transition_paths_dict = {}
         for mouse_id in processed_and_annotated_data.keys():
             transition_paths_dict[mouse_id] = {}
@@ -940,8 +1085,12 @@ class BehaviourAnnotator:
                         self.export_trial(trial_df_annotated_cleaned, pup_locations_annotated, df_summary,
                                                 mouse_id, day, trial_num, processed_data_dir = export_csv_dir)
 
-                        self.plot_behavioral_annotations(trial_df_annotated_cleaned, df_summary, pup_locations_annotated,
-                                    mouse_id, day, trial_num, plot_dir = plot_export_dir, export_plot = export)
+                        if plot_dir:
+                            os.makedirs(plot_dir, exist_ok=True)
+                            self.plot_behavioral_annotations(trial_df_annotated_cleaned, df_summary, pup_locations_annotated,
+                                    mouse_id, day, trial_num, 
+                                    plot_dir = f"{plot_dir}/full_cleaned_resolved_annotation_plots", 
+                                    export_plot = export)
             if export:
                 os.makedirs(transition_path_export_dir, exist_ok=True)
                 with open(f"{transition_path_export_dir}/{mouse_id}_transition_paths_dict.json", "w") as f:
@@ -951,9 +1100,25 @@ class BehaviourAnnotator:
         return transition_paths_dict
 
     def get_transition_path_for_trial(self, trial_df, final_behavior_col = "behavior_annotation"):
-    
+        """
+        Gets the transition path for a trial.
+        Defined at the level of a single trial.
+
+        Parameters:
+        -----------
+        trial_df : pandas DataFrame
+            DataFrame containing the trial data
+        final_behavior_col : str
+            Column name containing the final behavior annotation
+
+        Returns:
+        --------
+        trial_df : pandas DataFrame
+            DataFrame containing the trial data
+        transition_path : list
+            List of transition paths
+        """
         def is_valid_state(state):
-            
             single_event_states = [val for key, val in self.config["Behavioral_states"].items() if key in self.config["single_event_states"]]
             duration_state = state['end_time'] - state['start_time']
             print(f"Duration state: {duration_state}")
@@ -1023,8 +1188,35 @@ class BehaviourAnnotator:
 
         return trial_df, transition_path
         
-    def create_transition_matrices_from_transition_paths(self, mouse_ids, days, transition_paths_dict, category = ["Mother", "Virgin"]):
-        
+    def create_transition_matrices_from_transition_paths(self, mouse_ids, days, transition_paths_dict, category = ["Mother", "Virgin"],
+                                                        export = True,
+                                                        transition_matrix_export_dir = "transition_matrices"):
+        """
+        Creates the transition matrices from the transition paths.
+        Defined at the level of a group of mice and days.
+
+        Parameters:
+        -----------
+        mouse_ids : list
+            List of mouse IDs
+        days : list
+            List of days
+        transition_paths_dict : dict
+            Dictionary containing the transition paths,
+            created by get_and_export_transition_paths_for_animal,
+            or loaded by load_transition_paths_dict.
+        category : list
+            List of categories. Default is ["Mother", "Virgin"].
+        export : bool
+            Whether to export the transition matrices.
+        transition_matrix_export_dir : str
+            Directory to save the transition matrices.
+
+        Returns:
+        --------
+        dict_transition_matrices : dict
+            Dictionary containing the transition matrices for each category ("Mother" or "Virgin") and day (e.g. "d1").
+        """
         states = list(self.config["Behavioral_states"].values())
         dict_transition_matrices = {animal: {day: create_default_counts_matrix(states) for day in days} for animal in category}
 
@@ -1044,14 +1236,44 @@ class BehaviourAnnotator:
             
         for category in dict_transition_matrices.keys():
             for day in dict_transition_matrices[category].keys():
+                # export raw counts
+                if export:
+                    os.makedirs(f"{transition_matrix_export_dir}/raw_counts", exist_ok=True)
+                    dict_transition_matrices[category][day].to_csv(f"{transition_matrix_export_dir}/raw_counts/{category}_{day}_transition_matrix_raw.csv")
+
+                # normalize the matrix
                 dict_transition_matrices[category][day] = normalize_matrix(dict_transition_matrices[category][day])
                 print(f"Final transition matrix for {category} - {day}:")
                 display(dict_transition_matrices[category][day])
+
+                # export normalized counts
+                if export:
+                    os.makedirs(f"{transition_matrix_export_dir}/normalized_counts", exist_ok=True)
+                    dict_transition_matrices[category][day].to_csv(f"{transition_matrix_export_dir}/normalized_counts/{category}_{day}_transition_matrix.csv")
 
         return dict_transition_matrices
 
     def plot_transition_graph(self, prob_matrix,
                             title="Transition Probability Graph", threshold=0.0, ax=None):
+        """
+        Plots the transition graph.
+        Defined at the level of a single transition matrix.
+
+        Parameters:
+        -----------
+        prob_matrix : pandas DataFrame
+            DataFrame containing the transition probabilities
+        title : str
+            Title of the plot
+        threshold : float
+            Probability value threshold for showing probability arrows in the plot. Default is a probability of 0.0 (all edges are shown).
+        ax : matplotlib axis
+            Axis of the plot. Default is None.
+
+        Returns:
+        --------
+        None
+        """
         if ax is None:
             plt.figure(figsize=(12, 8))
             ax = plt.gca()
@@ -1161,6 +1383,24 @@ class BehaviourAnnotator:
 ### transition path functions ####
 
 def load_transition_paths_dict(transition_path_export_dir, mouse_ids, days):
+    """
+    Loads the transition paths dictionary from the export directory.
+    Defined at the level of a group of mice and days.
+
+    Parameters:
+    -----------
+    transition_path_export_dir : str
+        Directory to save the transition paths
+    mouse_ids : list
+        List of mouse IDs
+    days : list
+        List of days
+
+    Returns:
+    --------
+    transition_paths_dict : dict
+        Dictionary containing the transition paths
+    """
     transition_paths_dict = {}
     for mouse_id in mouse_ids:
         transition_paths_dict[mouse_id] = {}
@@ -1171,33 +1411,82 @@ def load_transition_paths_dict(transition_path_export_dir, mouse_ids, days):
     return transition_paths_dict
 
 def get_transition_pairs(transition_path):
-    """Convert transition sequences into from/to pairs"""
+    """
+    Convert transition sequences into from/to pairs.
+    Defined at the level of a single transition path, which is a trial.
+
+    Parameters:
+    -----------
+    transition_path : list
+        List of transition paths
+
+    Returns:
+    --------
+    counts_matrix : pandas DataFrame
+        DataFrame containing the transition counts
+    """
     counts_matrix = pd.crosstab(
         pd.Series(transition_path[:-1], name='from'),
         pd.Series(transition_path[1:], name='to'),
-        normalize=False
-    )
+        normalize=False)
     return counts_matrix
 
 def create_default_counts_matrix(states):
+    """
+    Creates a default counts matrix with zero counts for all possible transitions.
 
+    Parameters:
+    -----------
+    states : list
+        List of states
+
+    Returns:
+    --------
+    default_matrix : pandas DataFrame
+        DataFrame containing the default counts matrix
+    """
     default_matrix = pd.DataFrame(0,index=pd.Index(states, name='from'),
-                        columns=pd.Index(states, name='to'))
+                                  columns=pd.Index(states, name='to'))
     return default_matrix
 
 def add_trial_to_counts_matrix(base_matrix, trials_matrix):
+    """
+    Adds a trial to the counts matrix.
+    Defined at the level of a single trial.
+
+    Parameters:
+    -----------
+    base_matrix : pandas DataFrame
+        DataFrame containing the base counts matrix (final counts matrix for the category and day)
+    trials_matrix : pandas DataFrame
+        DataFrame containing the trial counts matrix (transition counts for the trial)
+
+    Returns:
+    --------
+    final_matrix : pandas DataFrame
+        DataFrame containing the base counts matrix with the trial counts added
+    """
     return base_matrix.add(trials_matrix, fill_value=0)
 
 def normalize_matrix(final_counts_matrix):
-     # Create a copy to avoid modifying the original
+    """
+    Normalizes the counts matrix.
+    Defined at the level of a category ("Mother" or "Virgin") and day (e.g. "d1").
+
+    Parameters:
+    -----------
+    final_counts_matrix : pandas DataFrame
+        DataFrame containing the final counts matrix
+
+    Returns:
+    --------
+    normalized : pandas DataFrame
+        DataFrame containing the normalized counts matrix
+    """
     normalized = final_counts_matrix.copy()
     # Divide each row by its sum
     normalized = normalized.div(normalized.sum(axis=1), axis=0).fillna(0)
     return normalized
-
-###  duration analysis functions ####
-
-
 
 
 ####   Previous analysis functions restricted to only successful trials ####

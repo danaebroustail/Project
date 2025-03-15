@@ -262,8 +262,39 @@ class DataLoader:
             dlc_data = pd.read_csv(f"{processed_data_dir}/{mouse_id}/{day}/trials/trial{trial_num}_DLC_processed_{mouse_id}_{day}.csv")
             experiment_data_processed[mouse_id][day]["trials"][trial_num] = {"dlc_data": dlc_data}
 
-    def collect_and_process_experiment_data(self, mouse_ids, days, BF_instance, VF_instance, processed_data_dir = None, export = False):
+    def collect_and_process_experiment_data(self, mouse_ids, days, BF_instance, VF_instance, processed_data_dir = None, export = False, plot_dir = "plots", show_DBSCAN_plot = False):
+        """
+        Collects and processes experiment data for a given set of mouse IDs and days.
+        Defined at the level of a group of mice and sessions
+        Executes the following steps:
+            0. loads data (get_data_for_experiment)
+            1. processes data (process_DLC and process_USV)
+            2. exports data to processed_data_dir if export is True
 
+        Parameters:
+            mouse_ids (list): list of mouse IDs to process
+            days (list): list of days to process
+            BF_instance (BehaviourFeatureExtractor): instance of BehaviourFeatureExtractor
+            VF_instance (VocalFeatureExtractor): instance of VocalFeatureExtractor
+            processed_data_dir (str): directory to save processed data
+            export (bool): whether to export processed data
+
+        Returns:
+            experiment_data (dict): dictionary containing the processed data
+        
+        experiment_data is a dictionary structured as follows:
+            mouse_id (str): mouse ID
+                day (str): day
+                    "Behavior" (dict): dictionary containing the processed data for the behavior
+                        - "df_summary" (DataFrame): summary data
+                        - "df_dlc" (DataFrame): original DLC data
+                    "Avisoft" (dict): dictionary containing the processed data for the avisoft
+                        - "df" (DataFrame): Avisoft data
+                    "trials" (dict): dictionary containing the processed data for the trials
+                        - trial_num (int): trial number
+                            - "dlc_data" (DataFrame): processed trial DLC data
+                            - "pup_locations" (dict): dictionary containing the processed data for the pup locations
+        """
         experiment_data = {}
         total_USV_counts = 0
         for mouse_id in mouse_ids:
@@ -284,7 +315,7 @@ class DataLoader:
                 df_summary = experiment_data[mouse_id][day]["Behavior"]["df_summary"].copy()
 
                 # align USV data to DLC data
-                df_DLC_processed, _ = BF_instance.process_DLC(df_DLC.copy(), df_summary, processed_data_dir = processed_data_dir)
+                df_DLC_processed, _ = BF_instance.process_DLC(df_DLC.copy(), df_summary, processed_data_dir = processed_data_dir, plot_dir = plot_dir, show_DBSCAN_plot = show_DBSCAN_plot)
                 trials, df_DLC, df_USV = VF_instance.process_USV(df_Avi, df_summary, df_DLC_processed)
 
                 print("Mouse - ", mouse_id, "Day - ", day, "VF_instance.overlap_USV_counts = ", VF_instance.overlap_USV_counts)
@@ -320,6 +351,23 @@ class DataLoader:
 
 
 def export_processed_data(processed_data_dir, experiment_data):
+    """
+    Exports processed data to a directory.
+    Parameters:
+        processed_data_dir (str): directory to save processed data
+        experiment_data (dict): dictionary containing the processed data,
+            structured as follows:
+            mouse_id (str): mouse ID
+                day (str): day
+                    "Behavior" (dict): dictionary containing the processed data for the behavior
+                        - "df_summary" (DataFrame): summary data
+                        - "df_dlc" (DataFrame): original DLC data
+                    "trials" (dict): dictionary containing the processed data for the trials
+                        - trial_num (int): trial number
+                            - "dlc_data" (DataFrame): processed trial DLC data
+                            - "pup_locations" (dict): dictionary containing the processed data for the pup locations
+                        
+    """
     os.makedirs(processed_data_dir, exist_ok = True)
 
     for mouse_id in experiment_data:

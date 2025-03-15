@@ -37,7 +37,23 @@ class VocalFeatureExtractor:
         self.BF = BehaviourFeatureExtractor(path_to_config_file)
 
     def extract_trial_USV(self, df_USV, df_summary, trial_num):
-        
+        """
+        Extracts the USV data for a single trial.
+        Defined at the level of a session.
+        Executes the following steps:
+            0. filters valid calls from df_USV
+            1. extract the part of the dataframe that fits the trial time range
+
+        Parameters:
+        -----------
+            df_USV (pd.DataFrame): The USV data.
+            df_summary (pd.DataFrame): The summary data.
+            trial_num (int): The trial number.
+
+        Returns:
+        --------
+            trial_USV (pd.DataFrame): The USV data for the trial.
+        """
         # keep only accepted calls
         df_USV = df_USV.copy()
         df_USV = df_USV[df_USV[self.USV_input_cols["accepted_col"]] == True]
@@ -133,17 +149,25 @@ class VocalFeatureExtractor:
     def process_trial_USV(self, trial_USV, trial_DLC):
         """
         Process the USV data for a single trial and add it to the DLC dataframe.
+        Defined at the level of a single trial.
+        Executes the following steps:
+            0. check and insert required columns
+            1. assign bout index to trial_DLC
+            2. assign bout index to trial_USV
+            3. combine trial_USV and trial_DLC
 
         Parameters:
-        - trial_USV : pandas.DataFrame
+        -----------
+        trial_USV : pandas.DataFrame
             The USV data for the trial.
-        - trial_DLC : pandas.DataFrame
+        trial_DLC : pandas.DataFrame
             The DLC data for the trial.
 
         Returns:
-        - trial_DLC : pandas.DataFrame
+        --------
+        trial_DLC : pandas.DataFrame
             The DLC dataframe with the USV data added.
-        - trial_USV : pandas.DataFrame
+        trial_USV : pandas.DataFrame
             The USV dataframe with the bout windows added.
         """
         trial_DLC, trial_USV = self.check_and_insert_columns_USV(trial_DLC, trial_USV)
@@ -162,22 +186,34 @@ class VocalFeatureExtractor:
     def process_USV(self, df_USV, df_summary, df_DLC):
         """
         Process the USV data and add it to the DLC dataframe.
+        Defined at the level of a session.
+        Executes the following steps:
+            0. check and insert required columns
+            1. iterate over all trials
+            2. extract the trial USV data
+            3. extract the trial DLC data
+            4. process the trial USV data and add it to the DLC dataframe
+            5. update the original dataframes
+            6. return the processed data
+        Updates a dictionary mapping trial number to the processed trial data.
 
         Parameters:
-        - df_USV : pandas.DataFrame
-            The USV data.
-        - df_summary : pandas.DataFrame
-            The summary dataframe of the DLC data.
-        - df_DLC : pandas.DataFrame
-            The DLC data.
+        -----------
+        df_USV : pandas.DataFrame
+            DataFrame containing USV data.
+        df_summary : pandas.DataFrame 
+            DataFrame containing summary information for each trial.
+        df_DLC : pandas.DataFrame
+            DataFrame containing DeepLabCut (DLC) tracking data.
 
         Returns:
-        - trials : dict
-            A dictionary containing the DLC and USV data for each trial.
-        - df_DLC : pandas.DataFrame
-            The DLC dataframe with the USV data added.
-        - df_USV : pandas.DataFrame
-            The USV dataframe with the bout windows added.
+        --------
+        trials : dict
+            Dictionary containing the DLC and USV data for each trial.
+        df_DLC : pandas.DataFrame
+            Updated DataFrame with USV data added.
+        df_USV : pandas.DataFrame 
+            Updated DataFrame with bout windows added.
         """
         trials = {}
 
