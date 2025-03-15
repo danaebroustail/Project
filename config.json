@@ -140,6 +140,8 @@
 "passive_behaviors": ["walking", "still", "in_nest"],
 "single_event_states": ["drop", "pickup", "retrieval"],
 
+"kernel_num_frames_smoothing": 20, 
+
 "number_of_frames_per_bout": 3,
 "frame_rate_dlc": 30,
 "pixels_to_cm_ratio": 10.42,
