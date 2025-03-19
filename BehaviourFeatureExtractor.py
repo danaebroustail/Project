@@ -1221,9 +1221,9 @@ class BehaviourFeatureExtractor:
 
                     with open(f"{processed_data_dir}/{ms_id}/{d}/trials/{ms_id}_{d}_trial{trial_num}_pup_location_dict.json", "w") as f:
                         # export only the start_time, end_time, and cluster_label of the clusters
-                        pup_dict_to_export = {key: {"start_time": value["start_time"], 
-                                                    "end_time": value["end_time"],
-                                                     "cluster_label": value["cluster_label"]} for key, value in pup_dict.items()}
+                        pup_dict_to_export = {key: {"start_time": float(value["start_time"]), 
+                                                    "end_time": float(value["end_time"]),
+                                                     "cluster_label": float(value["cluster_label"])} for key, value in pup_dict.items()}
 
                         json.dump(pup_dict_to_export, f)
 
