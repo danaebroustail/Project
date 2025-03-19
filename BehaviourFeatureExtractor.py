@@ -356,7 +356,7 @@ class BehaviourFeatureExtractor:
 
     def reset_pup_cluster(self, trial_dlc, df_summary, trial_num,
                             start_time_cluster = None,
-                            end_time_cluster = None, cluster_label = 0):
+                            end_time_cluster = None, cluster_label = 0.0):
         # get summary columns
         start_time_col = self.DLC_summary_cols["pup_displacement"]
         success_col = self.DLC_summary_cols["trial_success"]
@@ -572,7 +572,7 @@ class BehaviourFeatureExtractor:
             _ , pup_dict_instance = self.reset_pup_cluster(trial_dlc.copy(), df_summary, trial_num,
                                                     start_time_cluster = None,
                                                     end_time_cluster = None, 
-                                                    cluster_label = 0)
+                                                    cluster_label = 0.0)
 
             clustered_pup_coords = pup_dict_instance["data"][[time_seconds_col, pup_x_col, pup_y_col, cluster_label_col]]                                         
 
@@ -977,7 +977,7 @@ class BehaviourFeatureExtractor:
             # reset the first cluster
             start_time_cluster = None
             end_time_cluster = None
-            cluster_label = 0
+            cluster_label = 0.0
 
             if pup_dict != {}:
                 next_pup_label = min(pup_dict.keys())
@@ -1221,7 +1221,10 @@ class BehaviourFeatureExtractor:
 
                     with open(f"{processed_data_dir}/{ms_id}/{d}/trials/{ms_id}_{d}_trial{trial_num}_pup_location_dict.json", "w") as f:
                         # export only the start_time, end_time, and cluster_label of the clusters
-                        pup_dict_to_export = {key: {"start_time": value["start_time"], "end_time": value["end_time"], "cluster_label": value["cluster_label"]} for key, value in pup_dict.items()}
+                        pup_dict_to_export = {key: {"start_time": value["start_time"], 
+                                                    "end_time": value["end_time"],
+                                                     "cluster_label": value["cluster_label"]} for key, value in pup_dict.items()}
+
                         json.dump(pup_dict_to_export, f)
 
         return modified_df_DLC, trials_dict
