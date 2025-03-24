@@ -163,7 +163,7 @@ class DataLoader:
         """
 
         if path.endswith('.csv'):
-            if any([f in path.lower() for f in self.filters_dlc]):
+            if all([f in path.lower() for f in self.filters_dlc]):
                 df = self.process_behav_dlc(path, 
                                             frame_index_to_drop=self.frame_index_to_drop,
                                             frame_index_col = self.frame_index_col,
@@ -225,7 +225,7 @@ class DataLoader:
 
         Examples:
         ---------
-        # Retrieve data for a specific mouse ID and day
+        Retrieve data for a specific mouse ID and day
         data = get_data_for_experiment(mouse_id='M1', day='d1')    
         """
 

@@ -146,7 +146,7 @@
 "frame_rate_dlc": 30,
 "pixels_to_cm_ratio": 10.42,
 "frame_index_to_drop": 150,
-"dlc_file_tags": ["resnet50", "dlc", "shuffle", "oct"],
+"dlc_file_tags": ["resnet50", "dlc", "shuffle", "oct", "csv"],
 
 "threshold_likelihood_pup": 0.7,
 "likelihood_threshold": 0.7,
